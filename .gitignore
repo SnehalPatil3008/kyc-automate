@@ -1,0 +1,45 @@
+
+### IDE workspaces ###
+.metadata/
+**/.metadata/
+**/.settings/
+**/.classpath
+**/.project
+**/.sts4-cache/
+
+### Build output ###
+**/target/
+**/build/
+
+### Local secrets and configuration ###
+.env
+.env.*
+!.env.example
+**/application-local.properties
+**/application-local.yml
+**/application-secrets.properties
+**/application-*.local.properties
+*.pem
+*.key
+*.p12
+*.jks
+
+### Uploaded customer documents and logs ###
+**/uploads/
+**/storage/
+**/kyc-documents/
+*.log
+
+### VS Code / IntelliJ ###
+.vscode/
+.idea/
+*.iml
+
+### React frontend ###
+**/node_modules/
+**/dist/
+**/coverage/
+
+### Windows ###
+Thumbs.db
+Desktop.ini
