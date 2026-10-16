@@ -1,0 +1,4 @@
+**/target/
+**/kyc-storage/
+*.log
+.env
