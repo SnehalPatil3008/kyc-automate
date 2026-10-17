@@ -28,6 +28,7 @@
 **/uploads/
 **/storage/
 **/kyc-documents/
+**/kyc-storage/
 *.log
 
 ### VS Code / IntelliJ ###
