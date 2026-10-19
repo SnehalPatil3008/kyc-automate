@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.security;
 
 import java.util.Locale;
@@ -95,6 +94,10 @@ public class SecurityConfig {
                     "VERIFICATION_SERVICE",
                     "DECISION_SERVICE"
                 )
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/internal/kyc/applications/*/status"
+                ).hasRole("DECISION_SERVICE")
                 .requestMatchers(
                     HttpMethod.PATCH,
                     "/api/internal/kyc/applications/*/status"

@@ -2,6 +2,7 @@ package com.kycautomate.document.controller;
 
 import com.kycautomate.document.domain.Document;
 import com.kycautomate.document.domain.DocumentType;
+import com.kycautomate.document.dto.DocumentCompletenessResponse;
 import com.kycautomate.document.dto.DocumentResponse;
 import com.kycautomate.document.repository.DocumentRepository;
 import com.kycautomate.document.service.DocumentService;
@@ -69,6 +70,12 @@ public class DocumentController {
     @GetMapping("/applications/{applicationId}/history")
     public List<DocumentResponse> findHistory(@PathVariable String applicationId) {
         return documentService.findHistoryByApplication(applicationId);
+    }
+    @GetMapping("/applications/{applicationId}/completeness")
+    public DocumentCompletenessResponse completeness(
+            @PathVariable String applicationId) {
+
+        return documentService.checkCompleteness(applicationId);
     }
 
     @GetMapping("/{documentId}/content")

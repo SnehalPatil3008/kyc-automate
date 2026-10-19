@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.entity;
 
 import java.time.LocalDate;
@@ -62,6 +61,9 @@ private LocalDateTime createdAt;
 
     @Column(name = "UPDATED_AT", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "REQUESTED_DOCUMENT_TYPES", length = 200)
+    private String requestedDocumentTypes;
 
     @Version
     @Column(name = "VERSION", nullable = false)
@@ -150,4 +152,10 @@ public void onUpdate() {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 
     public Integer getVersion() { return version; }
+
+    public String getRequestedDocumentTypes() { return requestedDocumentTypes; }
+    public void setRequestedDocumentTypes(String value) {
+        requestedDocumentTypes = value;
+    }
+
 }
