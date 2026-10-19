@@ -13,7 +13,6 @@ import com.kycautomate.audit.enums.EventType;
 import com.kycautomate.audit.repository.AuditEventRepository;
 
 import java.time.Instant;
-import java.util.Arrays;
 
 import com.kycautomate.audit.dto.EventCountResponse;
 import com.kycautomate.audit.dto.StatusCountResponse;
