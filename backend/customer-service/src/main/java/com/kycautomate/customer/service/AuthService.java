@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.service;
 
 import java.util.Locale;
@@ -35,6 +34,10 @@ public class AuthService {
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
+
+        if (request.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("Password must be at most 72 UTF-8 bytes");
+        }
 
         String email = request.email()
                 .trim().toLowerCase(Locale.ROOT);
