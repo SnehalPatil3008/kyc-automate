@@ -2,10 +2,12 @@ package com.kycautomate.verification.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kycautomate.verification.client.AuditClient;
 import com.kycautomate.verification.client.CustomerApplicationClient;
 import com.kycautomate.verification.client.DocumentServiceClient;
 import com.kycautomate.verification.domain.DocumentType;
 import com.kycautomate.verification.domain.VerificationResult;
+import com.kycautomate.verification.dto.AuditEventRequest;
 import com.kycautomate.verification.dto.AuthBridgeDto;
 import com.kycautomate.verification.dto.CustomerApplicationSnapshot;
 import com.kycautomate.verification.dto.CustomerVerificationRequest;
@@ -34,7 +36,8 @@ public class VerificationService {
     private final VerificationResultRepository repository;
     private final ObjectMapper objectMapper;
     private final DocumentRequirementService requirementService;
-
+    private final AuditClient auditClient;
+    
     public VerificationService(
             DocumentServiceClient documentClient,
             CustomerApplicationClient customerApplicationClient,
@@ -42,7 +45,8 @@ public class VerificationService {
             SimulatedIdentityVerificationService identityService,
             VerificationResultRepository repository,
             ObjectMapper objectMapper,
-            DocumentRequirementService requirementService) {
+            DocumentRequirementService requirementService,
+            AuditClient auditClient) {
 
         this.documentClient = documentClient;
         this.customerApplicationClient = customerApplicationClient;
@@ -51,6 +55,7 @@ public class VerificationService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.requirementService = requirementService;
+        this.auditClient = auditClient;
     }
 
     @Transactional
@@ -98,6 +103,15 @@ public class VerificationService {
             result.setEvidenceJson(toJson(documents));
 
             repository.save(result);
+            repository.save(result);
+
+            auditClient.recordEvent(new AuditEventRequest(
+                    applicationId,
+                    "RESUBMISSION_REQUESTED",
+                    reason,
+                    "verification-service",
+                    "SERVICE"
+            ));
 
             return toResponse(result);
         }
@@ -133,6 +147,34 @@ public class VerificationService {
         result.setEvidenceJson(toJson(documents));
 
         repository.save(result);
+        String eventType = switch (evaluation.decision()) {
+        case "RESUBMISSION_REQUIRED" ->
+                "RESUBMISSION_REQUESTED";
+
+        case "RECOMMENDED_FOR_APPROVAL" ->
+                "VERIFICATION_COMPLETED";
+
+        case "MANUAL_REVIEW" ->
+                "VERIFICATION_COMPLETED";
+
+        case "PROCESSING" ->
+                "DOCUMENT_PROCESSING_STARTED";
+
+        default ->
+                "VERIFICATION_COMPLETED";
+    };
+
+    String auditReason =
+            "Decision: " + evaluation.decision()
+            + ". " + evaluation.reason();
+
+    auditClient.recordEvent(new AuditEventRequest(
+            applicationId,
+            eventType,
+            auditReason,
+            "verification-service",
+            "SERVICE"
+    ));
 
         return toResponse(result);
     }
