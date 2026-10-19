@@ -30,7 +30,7 @@ public class InternalKycApplicationController {
             service.getInternalSnapshot(id));
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {RequestMethod.PATCH, RequestMethod.POST})
     public ResponseEntity<ApplicationStatusUpdateResponse> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody ApplicationStatusUpdateRequest request) {

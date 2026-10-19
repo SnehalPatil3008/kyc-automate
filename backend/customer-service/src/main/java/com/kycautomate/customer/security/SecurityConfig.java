@@ -96,6 +96,10 @@ public class SecurityConfig {
                     "DECISION_SERVICE"
                 )
                 .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/internal/kyc/applications/*/status"
+                ).hasRole("DECISION_SERVICE")
+                .requestMatchers(
                     HttpMethod.PATCH,
                     "/api/internal/kyc/applications/*/status"
                 ).hasRole("DECISION_SERVICE")
