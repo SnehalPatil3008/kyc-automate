@@ -115,7 +115,8 @@ public class DocumentService {
                         document.getDocumentType() == DocumentType.AADHAAR
                                 || document.getDocumentType() == DocumentType.PASSPORT
                                 || document.getDocumentType() == DocumentType.VOTER_ID
-                                || document.getDocumentType() == DocumentType.DRIVING_LICENCE);
+                                || document.getDocumentType() == DocumentType.DRIVING_LICENCE
+        						|| document.getDocumentType() == DocumentType.GAS_BILL);
 
         List<String> missingDocuments = new ArrayList<>();
 
