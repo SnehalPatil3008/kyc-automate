@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.entity;
 
 import java.time.LocalDateTime;
@@ -39,6 +38,9 @@ public class KycStatusOperation {
 
     @Column(name = "RESULT_VERSION", nullable = false)
     private Integer resultVersion;
+
+    @Column(name = "REQUESTED_DOCUMENT_TYPES", length = 200)
+    private String requestedDocumentTypes;
 
     @Column(name = "CREATED_AT", nullable = false,
             insertable = false, updatable = false)
@@ -107,4 +109,10 @@ public class KycStatusOperation {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public String getRequestedDocumentTypes() { return requestedDocumentTypes; }
+    public void setRequestedDocumentTypes(String value) {
+        requestedDocumentTypes = value;
+    }
+
 }

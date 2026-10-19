@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.service;
 
 import java.time.LocalDate;
@@ -146,12 +145,15 @@ public class KycApplicationService {
 
         validateApplicationDetails(application);
 
-        // This remains blocked until Document Service
-        // verifies the specifically requested replacements.
+        documentValidationService.validateReplacements(
+            applicationId, requestedTypes(application.getRequestedDocumentTypes()),
+            application.getUpdatedAt().toInstant(ZoneOffset.UTC));
 
-        throw new BusinessConflictException(
-            "Resubmission requires verification of newly "
-            + "uploaded replacement documents");
+        application.setApplicationStatus(ApplicationStatus.SUBMITTED);
+        application.setStatusReason(null);
+        application.setRequestedDocumentTypes(null);
+        application.setSubmittedAt(LocalDateTime.now(ZoneOffset.UTC));
+        return toResponse(applicationRepository.saveAndFlush(application));
     }
 
     // =========================================
@@ -231,6 +233,7 @@ public class KycApplicationService {
 
         String reference = request.decisionReference().trim();
         String reason = normalizeReason(request.reason());
+        String requested = normalizeRequestedTypes(request);
 
         // Lock this application so updates to the same
         // application are serialized.
@@ -253,7 +256,9 @@ public class KycApplicationService {
                     || !java.util.Objects.equals(
                         previous.getReason(), reason)
                     || !previous.getExpectedVersion()
-                        .equals(request.expectedVersion())) {
+                        .equals(request.expectedVersion())
+                    || !java.util.Objects.equals(
+                        previous.getRequestedDocumentTypes(), requested)) {
 
                 throw new BusinessConflictException(
                     "Decision reference already used "
@@ -285,6 +290,7 @@ public class KycApplicationService {
         // Update the application.
         application.setApplicationStatus(request.newStatus());
         application.setStatusReason(reason);
+        application.setRequestedDocumentTypes(requested);
 
         KycApplication saved =
             applicationRepository.saveAndFlush(application);
@@ -297,6 +303,7 @@ public class KycApplicationService {
         operation.setFromStatus(oldStatus);
         operation.setToStatus(request.newStatus());
         operation.setReason(reason);
+        operation.setRequestedDocumentTypes(requested);
         operation.setExpectedVersion(request.expectedVersion());
         operation.setResultVersion(saved.getVersion());
 
@@ -400,7 +407,34 @@ public class KycApplicationService {
             application.getCreatedAt(),
             application.getSubmittedAt(),
             application.getUpdatedAt(),
-            application.getVersion()
+            application.getVersion(),
+            requestedTypes(application.getRequestedDocumentTypes())
         );
+    }
+
+    private java.util.Set<String> requestedTypes(String value) {
+        return value == null || value.isBlank() ? java.util.Set.of()
+            : java.util.Set.copyOf(java.util.Arrays.asList(value.split(",")));
+    }
+
+    private String normalizeRequestedTypes(ApplicationStatusUpdateRequest request) {
+        java.util.Set<String> types = request.requestedDocumentTypes() == null
+            ? java.util.Set.of() : request.requestedDocumentTypes();
+        java.util.Set<String> supported = java.util.Set.of(
+            "PAN", "AADHAAR", "PASSPORT", "DRIVING_LICENCE", "VOTER_ID",
+            "ELECTRICITY_BILL");
+        if (types.stream().anyMatch(type -> type == null
+                || !supported.contains(type))) {
+            throw new BusinessConflictException("Unsupported replacement document type");
+        }
+        if (request.newStatus() == ApplicationStatus.RESUBMISSION_REQUIRED) {
+            if (types.isEmpty()) throw new BusinessConflictException(
+                "Specify the document types the customer must replace");
+            return types.stream().sorted().collect(
+                java.util.stream.Collectors.joining(","));
+        }
+        if (!types.isEmpty()) throw new BusinessConflictException(
+            "Replacement types are only allowed for RESUBMISSION_REQUIRED");
+        return null;
     }
 }
