@@ -103,7 +103,6 @@ public class VerificationService {
             result.setEvidenceJson(toJson(documents));
 
             repository.save(result);
-            repository.save(result);
 
             auditClient.recordEvent(new AuditEventRequest(
                     applicationId,
