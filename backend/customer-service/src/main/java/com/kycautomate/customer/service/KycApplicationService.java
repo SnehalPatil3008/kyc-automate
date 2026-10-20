@@ -150,8 +150,8 @@ public class KycApplicationService {
         try {
             auditClient.recordEvent(new AuditEventRequest(
                     String.valueOf(saved.getApplicationId()),
-                    "APPLICATION_CREATED",
-                    "KYC application created",
+                    "APPLICATION_SUBMITTED",
+                    "KYC application submitted",
                     email,
                     "CUSTOMER"
             ));
@@ -195,8 +195,8 @@ public class KycApplicationService {
         try {
             auditClient.recordEvent(new AuditEventRequest(
                     String.valueOf(saved.getApplicationId()),
-                    "APPLICATION_SUBMITTED",
-                    "KYC application submitted",
+                    "APPLICATION_RESUBMITTED",
+                    "KYC application resubmitted",
                     email,
                     "CUSTOMER"
             ));
