@@ -105,13 +105,19 @@ public class KycApplicationService {
         KycApplication saved =
                 applicationRepository.saveAndFlush(application);
 
-        auditClient.recordEvent(new AuditEventRequest(
-                String.valueOf(saved.getApplicationId()),
-                "APPLICATION_CREATED",
-                "KYC application created",
-                email,
-                "CUSTOMER"
-        ));
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_CREATED",
+                    "KYC application created",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
+
 
         return toResponse(
             saved);
@@ -141,15 +147,19 @@ public class KycApplicationService {
         
         KycApplication saved =
                 applicationRepository.saveAndFlush(application);
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_CREATED",
+                    "KYC application created",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
 
-        auditClient.recordEvent(new AuditEventRequest(
-                String.valueOf(saved.getApplicationId()),
-                "APPLICATION_SUBMITTED",
-                "KYC application submitted",
-                email,
-                "CUSTOMER"
-        ));
-        
         return toResponse(
             saved);
     }
@@ -181,13 +191,19 @@ public class KycApplicationService {
         
         KycApplication saved =
                 applicationRepository.saveAndFlush(application);
-        auditClient.recordEvent(new AuditEventRequest(
-                String.valueOf(saved.getApplicationId()),
-                "APPLICATION_RESUBMITTED",
-                "KYC application resubmitted",
-                email,
-                "CUSTOMER"
-        ));
+
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_SUBMITTED",
+                    "KYC application submitted",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
 
         return toResponse(saved);
     }
