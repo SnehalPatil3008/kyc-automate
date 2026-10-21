@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.dto;
 
 public record AuthResponse(
