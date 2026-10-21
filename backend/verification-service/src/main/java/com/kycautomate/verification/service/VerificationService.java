@@ -102,7 +102,7 @@ public class VerificationService {
             result.setReason(reason);
             result.setEvidenceJson(toJson(documents));
 
-            repository.save(result);
+            result = repository.saveAndFlush(result);
 
             auditClient.recordEvent(new AuditEventRequest(
                     applicationId,
@@ -145,7 +145,7 @@ public class VerificationService {
         result.setAddressScore(evaluation.addressScore());
         result.setEvidenceJson(toJson(documents));
 
-        repository.save(result);
+        result = repository.saveAndFlush(result);
         String eventType = switch (evaluation.decision()) {
         case "RESUBMISSION_REQUIRED" ->
                 "RESUBMISSION_REQUESTED";
