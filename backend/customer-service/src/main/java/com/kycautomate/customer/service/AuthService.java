@@ -1,6 +1,16 @@
 package com.kycautomate.customer.service;
 
 import java.util.Locale;
+import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.server.ResponseStatusException;
+import com.kycautomate.customer.dto.LoginRequest;
+import com.kycautomate.customer.dto.AuthResponse;
+import com.kycautomate.customer.security.JwtTokenService;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,14 +32,42 @@ public class AuthService {
     private final AppUserRepository userRepository;
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenService tokens;
 
     public AuthService(
             AppUserRepository userRepository,
             CustomerRepository customerRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            @Qualifier("customerLoginAuthenticationManager") AuthenticationManager authenticationManager,
+            JwtTokenService tokens) {
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.tokens = tokens;
+    }
+
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+        try {
+            authenticationManager.authenticate(
+                UsernamePasswordAuthenticationToken.unauthenticated(email, request.password()));
+        } catch (AuthenticationException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+        AppUser user = userRepository.findByEmail(email).orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+        if (user.getRole() != UserRole.CUSTOMER || user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+        var token = tokens.issue(user.getEmail());
+        return new AuthResponse(token.value(), "Bearer", token.expiresIn(),
+            user.getUserId(), user.getRole().name());
     }
 
     @Transactional
