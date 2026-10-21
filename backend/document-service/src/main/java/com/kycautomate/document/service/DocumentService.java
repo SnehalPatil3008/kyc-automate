@@ -1,7 +1,9 @@
 package com.kycautomate.document.service;
 
+import com.kycautomate.document.client.AuditClient;
 import com.kycautomate.document.domain.Document;
 import com.kycautomate.document.domain.DocumentType;
+import com.kycautomate.document.dto.AuditEventRequest;
 import com.kycautomate.document.dto.DocumentCompletenessResponse;
 import com.kycautomate.document.dto.DocumentResponse;
 import com.kycautomate.document.dto.ExtractedFieldResponse;
@@ -21,11 +23,13 @@ public class DocumentService {
 
     private final DocumentRepository repository;
     private final StorageService storageService;
-
+    private final AuditClient auditClient;
     public DocumentService(DocumentRepository repository,
-                           StorageService storageService) {
+                           StorageService storageService,
+                           AuditClient auditClient) {
         this.repository = repository;
         this.storageService = storageService;
+        this.auditClient = auditClient;
     }
 
     @Transactional
@@ -62,7 +66,15 @@ public class DocumentService {
                 "Document stored; OCR processing queued.");
 
         repository.saveAndFlush(document);
-
+        auditClient.recordEvent(
+                new AuditEventRequest(
+                        applicationId,
+                        "DOCUMENT_UPLOADED",
+                        documentType + " document uploaded",
+                        "document-service",
+                        "SERVICE"
+                )
+        );
         return toResponse(document);
     }
 
@@ -115,7 +127,8 @@ public class DocumentService {
                         document.getDocumentType() == DocumentType.AADHAAR
                                 || document.getDocumentType() == DocumentType.PASSPORT
                                 || document.getDocumentType() == DocumentType.VOTER_ID
-                                || document.getDocumentType() == DocumentType.DRIVING_LICENCE);
+                                || document.getDocumentType() == DocumentType.DRIVING_LICENCE
+        						|| document.getDocumentType() == DocumentType.GAS_BILL);
 
         List<String> missingDocuments = new ArrayList<>();
 

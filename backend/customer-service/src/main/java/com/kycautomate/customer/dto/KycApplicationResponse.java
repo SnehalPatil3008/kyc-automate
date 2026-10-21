@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.dto;
 
 import java.time.LocalDate;
@@ -20,5 +19,6 @@ public record KycApplicationResponse(
     LocalDateTime createdAt,
     LocalDateTime submittedAt,
     LocalDateTime updatedAt,
-    Integer version
+    Integer version,
+    java.util.Set<String> requestedDocumentTypes
 ) {}

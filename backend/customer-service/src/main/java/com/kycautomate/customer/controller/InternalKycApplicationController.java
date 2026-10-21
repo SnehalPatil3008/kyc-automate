@@ -1,4 +1,3 @@
-
 package com.kycautomate.customer.controller;
 
 import org.springframework.http.ResponseEntity;

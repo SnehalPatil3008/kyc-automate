@@ -2,52 +2,91 @@ package com.kycautomate.verification.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kycautomate.verification.client.AuditClient;
+import com.kycautomate.verification.client.CustomerApplicationClient;
 import com.kycautomate.verification.client.DocumentServiceClient;
 import com.kycautomate.verification.domain.DocumentType;
 import com.kycautomate.verification.domain.VerificationResult;
-import com.kycautomate.verification.dto.*;
+import com.kycautomate.verification.dto.AuditEventRequest;
+import com.kycautomate.verification.dto.AuthBridgeDto;
+import com.kycautomate.verification.dto.CustomerApplicationSnapshot;
+import com.kycautomate.verification.dto.CustomerVerificationRequest;
+import com.kycautomate.verification.dto.DocumentSnapshot;
+import com.kycautomate.verification.dto.VerificationResponse;
 import com.kycautomate.verification.repository.VerificationResultRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class VerificationService {
 
+    private static final DateTimeFormatter DOB_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final DocumentServiceClient documentClient;
+    private final CustomerApplicationClient customerApplicationClient;
     private final VerificationRuleEngine ruleEngine;
     private final SimulatedIdentityVerificationService identityService;
     private final VerificationResultRepository repository;
     private final ObjectMapper objectMapper;
     private final DocumentRequirementService requirementService;
-
+    private final AuditClient auditClient;
+    
     public VerificationService(
             DocumentServiceClient documentClient,
+            CustomerApplicationClient customerApplicationClient,
             VerificationRuleEngine ruleEngine,
             SimulatedIdentityVerificationService identityService,
             VerificationResultRepository repository,
             ObjectMapper objectMapper,
-            DocumentRequirementService requirementService) {
+            DocumentRequirementService requirementService,
+            AuditClient auditClient) {
 
         this.documentClient = documentClient;
+        this.customerApplicationClient = customerApplicationClient;
         this.ruleEngine = ruleEngine;
         this.identityService = identityService;
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.requirementService = requirementService;
+        this.auditClient = auditClient;
     }
 
     @Transactional
     public VerificationResponse verify(
             String applicationId,
-            CustomerVerificationRequest customer) {
+            CustomerVerificationRequest ignoredCustomerData) {
+
+        long numericApplicationId;
+
+        try {
+            numericApplicationId = Long.parseLong(applicationId);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(
+                    "Application ID must be a numeric Customer Service application ID."
+            );
+        }
+
+        /*
+         * Retrieve the trusted CAF details from Customer Service.
+         * The values sent by the browser are intentionally ignored.
+         */
+        CustomerApplicationSnapshot snapshot =
+                customerApplicationClient.getSnapshot(numericApplicationId);
+
+        CustomerVerificationRequest customer =
+                createCustomerVerificationRequest(snapshot);
 
         List<DocumentSnapshot> documents =
                 documentClient.getActiveDocuments(applicationId);
 
-        // Check PAN + OVD requirements first
+        // Check PAN + OVD requirements first.
         DocumentRequirementService.RequirementResult requirements =
                 requirementService.check(documents);
 
@@ -65,14 +104,25 @@ public class VerificationService {
 
             repository.save(result);
 
+            auditClient.recordEvent(new AuditEventRequest(
+                    applicationId,
+                    "RESUBMISSION_REQUESTED",
+                    reason,
+                    "verification-service",
+                    "SERVICE"
+            ));
+
             return toResponse(result);
         }
 
-        // Continue with normal name, DOB and address verification
+        // Compare trusted CAF details with OCR values.
         VerificationRuleEngine.RuleEvaluationResult evaluation =
                 ruleEngine.evaluate(customer, documents);
 
+        // Run simulated external identity verification only after
+        // completeness and CAF/OCR comparison pass.
         if ("RECOMMENDED_FOR_APPROVAL".equals(evaluation.decision())) {
+
             String registryFailure =
                     verifyIdentityDocuments(customer, documents);
 
@@ -96,8 +146,62 @@ public class VerificationService {
         result.setEvidenceJson(toJson(documents));
 
         repository.save(result);
+        String eventType = switch (evaluation.decision()) {
+        case "RESUBMISSION_REQUIRED" ->
+                "RESUBMISSION_REQUESTED";
+
+        case "RECOMMENDED_FOR_APPROVAL" ->
+                "VERIFICATION_COMPLETED";
+
+        case "MANUAL_REVIEW" ->
+                "VERIFICATION_COMPLETED";
+
+        case "PROCESSING" ->
+                "DOCUMENT_PROCESSING_STARTED";
+
+        default ->
+                "VERIFICATION_COMPLETED";
+    };
+
+    String auditReason =
+            "Decision: " + evaluation.decision()
+            + ". " + evaluation.reason();
+
+    auditClient.recordEvent(new AuditEventRequest(
+            applicationId,
+            eventType,
+            auditReason,
+            "verification-service",
+            "SERVICE"
+    ));
 
         return toResponse(result);
+    }
+
+    private CustomerVerificationRequest createCustomerVerificationRequest(
+            CustomerApplicationSnapshot snapshot) {
+
+        String fullAddress = List.of(
+                    snapshot.applicantAddress(),
+                    snapshot.applicantCity(),
+                    snapshot.applicantState(),
+                    snapshot.applicantPostalCode()
+                )
+                .stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.joining(", "));
+
+        String dob = snapshot.applicantDob() == null
+                ? null
+                : snapshot.applicantDob().format(DOB_FORMAT);
+
+        return new CustomerVerificationRequest(
+                snapshot.applicantName(),
+                dob,
+                fullAddress
+        );
     }
 
     @Transactional(readOnly = true)
