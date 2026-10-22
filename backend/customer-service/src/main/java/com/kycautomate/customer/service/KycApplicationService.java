@@ -10,8 +10,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kycautomate.customer.client.AuditClient;
 import com.kycautomate.customer.dto.ApplicationStatusUpdateRequest;
 import com.kycautomate.customer.dto.ApplicationStatusUpdateResponse;
+import com.kycautomate.customer.dto.AuditEventRequest;
 import com.kycautomate.customer.dto.InternalKycApplicationResponse;
 import com.kycautomate.customer.dto.KycApplicationResponse;
 
@@ -35,7 +37,7 @@ public class KycApplicationService {
     private final CustomerService customerService;
     private final DocumentValidationService documentValidationService;
     private final ApplicationStatusValidator statusValidator;
-
+    private final AuditClient auditClient;
     private static final List<ApplicationStatus> ACTIVE_STATUSES =
         List.of(
             ApplicationStatus.DRAFT,
@@ -51,13 +53,15 @@ public class KycApplicationService {
             KycStatusOperationRepository operationRepository,
             CustomerService customerService,
             DocumentValidationService documentValidationService,
-            ApplicationStatusValidator statusValidator) {
+            ApplicationStatusValidator statusValidator,
+            AuditClient auditClient) {
 
         this.applicationRepository = applicationRepository;
         this.operationRepository = operationRepository;
         this.customerService = customerService;
         this.documentValidationService = documentValidationService;
         this.statusValidator = statusValidator;
+        this.auditClient=auditClient;
     }
 
     // =========================================
@@ -98,9 +102,25 @@ public class KycApplicationService {
         application.setApplicationStatus(ApplicationStatus.DRAFT);
 
         validateApplicationDetails(application);
+        KycApplication saved =
+                applicationRepository.saveAndFlush(application);
+
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_CREATED",
+                    "KYC application created",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
+
 
         return toResponse(
-            applicationRepository.saveAndFlush(application));
+            saved);
     }
 
     // =========================================
@@ -124,9 +144,24 @@ public class KycApplicationService {
         application.setApplicationStatus(ApplicationStatus.SUBMITTED);
         application.setSubmittedAt(
             LocalDateTime.now(ZoneOffset.UTC));
+        
+        KycApplication saved =
+                applicationRepository.saveAndFlush(application);
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_SUBMITTED",
+                    "KYC application submitted",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
 
         return toResponse(
-            applicationRepository.saveAndFlush(application));
+            saved);
     }
 
     // =========================================
@@ -153,7 +188,24 @@ public class KycApplicationService {
         application.setStatusReason(null);
         application.setRequestedDocumentTypes(null);
         application.setSubmittedAt(LocalDateTime.now(ZoneOffset.UTC));
-        return toResponse(applicationRepository.saveAndFlush(application));
+        
+        KycApplication saved =
+                applicationRepository.saveAndFlush(application);
+
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(saved.getApplicationId()),
+                    "APPLICATION_RESUBMITTED",
+                    "KYC application resubmitted",
+                    email,
+                    "CUSTOMER"
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
+
+        return toResponse(saved);
     }
 
     // =========================================

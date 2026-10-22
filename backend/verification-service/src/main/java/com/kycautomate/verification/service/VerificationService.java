@@ -2,10 +2,12 @@ package com.kycautomate.verification.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kycautomate.verification.client.AuditClient;
 import com.kycautomate.verification.client.CustomerApplicationClient;
 import com.kycautomate.verification.client.DocumentServiceClient;
 import com.kycautomate.verification.domain.DocumentType;
 import com.kycautomate.verification.domain.VerificationResult;
+import com.kycautomate.verification.dto.AuditEventRequest;
 import com.kycautomate.verification.dto.AuthBridgeDto;
 import com.kycautomate.verification.dto.CustomerApplicationSnapshot;
 import com.kycautomate.verification.dto.CustomerVerificationRequest;
@@ -16,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,6 +39,7 @@ public class VerificationService {
     private final VerificationResultRepository repository;
     private final ObjectMapper objectMapper;
     private final DocumentRequirementService requirementService;
+    private final AuditClient auditClient;
 
     public VerificationService(
             DocumentServiceClient documentClient,
@@ -42,7 +48,8 @@ public class VerificationService {
             SimulatedIdentityVerificationService identityService,
             VerificationResultRepository repository,
             ObjectMapper objectMapper,
-            DocumentRequirementService requirementService) {
+            DocumentRequirementService requirementService,
+            AuditClient auditClient) {
 
         this.documentClient = documentClient;
         this.customerApplicationClient = customerApplicationClient;
@@ -51,6 +58,7 @@ public class VerificationService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.requirementService = requirementService;
+        this.auditClient = auditClient;
     }
 
     @Transactional
@@ -68,10 +76,6 @@ public class VerificationService {
             );
         }
 
-        /*
-         * Retrieve the trusted CAF details from Customer Service.
-         * The values sent by the browser are intentionally ignored.
-         */
         CustomerApplicationSnapshot snapshot =
                 customerApplicationClient.getSnapshot(numericApplicationId);
 
@@ -81,7 +85,9 @@ public class VerificationService {
         List<DocumentSnapshot> documents =
                 documentClient.getActiveDocuments(applicationId);
 
-        // Check PAN + OVD requirements first.
+        List<AuthBridgeDto.VerifyResponse> identityResults =
+                new ArrayList<>();
+
         DocumentRequirementService.RequirementResult requirements =
                 requirementService.check(documents);
 
@@ -95,28 +101,37 @@ public class VerificationService {
             result.setApplicationId(applicationId);
             result.setDecision("RESUBMISSION_REQUIRED");
             result.setReason(reason);
-            result.setEvidenceJson(toJson(documents));
+            result.setEvidenceJson(
+                    toJson(documents, identityResults)
+            );
 
-            repository.save(result);
+            result = repository.saveAndFlush(result);
 
-            return toResponse(result);
+            auditClient.recordEvent(new AuditEventRequest(
+                    applicationId,
+                    "RESUBMISSION_REQUESTED",
+                    reason,
+                    "verification-service",
+                    "SERVICE"
+            ));
+
+            return toResponse(result, identityResults);
         }
 
-        // Compare trusted CAF details with OCR values.
         VerificationRuleEngine.RuleEvaluationResult evaluation =
                 ruleEngine.evaluate(customer, documents);
 
-        // Run simulated external identity verification only after
-        // completeness and CAF/OCR comparison pass.
         if ("RECOMMENDED_FOR_APPROVAL".equals(evaluation.decision())) {
 
-            String registryFailure =
+            IdentityVerificationResult identityResult =
                     verifyIdentityDocuments(customer, documents);
 
-            if (registryFailure != null) {
+            identityResults = identityResult.responses();
+
+            if (identityResult.failureReason() != null) {
                 evaluation = new VerificationRuleEngine.RuleEvaluationResult(
                         "MANUAL_REVIEW",
-                        registryFailure,
+                        identityResult.failureReason(),
                         evaluation.nameScore(),
                         evaluation.addressScore()
                 );
@@ -130,21 +145,50 @@ public class VerificationService {
         result.setReason(evaluation.reason());
         result.setNameScore(evaluation.nameScore());
         result.setAddressScore(evaluation.addressScore());
-        result.setEvidenceJson(toJson(documents));
+        result.setEvidenceJson(
+                toJson(documents, identityResults)
+        );
 
-        repository.save(result);
+        result = repository.saveAndFlush(result);
 
-        return toResponse(result);
+        String eventType = switch (evaluation.decision()) {
+            case "RESUBMISSION_REQUIRED" ->
+                    "RESUBMISSION_REQUESTED";
+
+            case "RECOMMENDED_FOR_APPROVAL",
+                 "MANUAL_REVIEW" ->
+                    "VERIFICATION_COMPLETED";
+
+            case "PROCESSING" ->
+                    "DOCUMENT_PROCESSING_STARTED";
+
+            default ->
+                    "VERIFICATION_COMPLETED";
+        };
+
+        String auditReason =
+                "Decision: " + evaluation.decision()
+                        + ". " + evaluation.reason();
+
+        auditClient.recordEvent(new AuditEventRequest(
+                applicationId,
+                eventType,
+                auditReason,
+                "verification-service",
+                "SERVICE"
+        ));
+
+        return toResponse(result, identityResults);
     }
 
     private CustomerVerificationRequest createCustomerVerificationRequest(
             CustomerApplicationSnapshot snapshot) {
 
         String fullAddress = List.of(
-                    snapshot.applicantAddress(),
-                    snapshot.applicantCity(),
-                    snapshot.applicantState(),
-                    snapshot.applicantPostalCode()
+                        snapshot.applicantAddress(),
+                        snapshot.applicantCity(),
+                        snapshot.applicantState(),
+                        snapshot.applicantPostalCode()
                 )
                 .stream()
                 .filter(Objects::nonNull)
@@ -167,16 +211,19 @@ public class VerificationService {
     public VerificationResponse latest(String applicationId) {
         return repository
                 .findTopByApplicationIdOrderByVerifiedAtDesc(applicationId)
-                .map(this::toResponse)
+                .map(result -> toResponse(result, List.of()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No verification result found for application: "
                                 + applicationId
                 ));
     }
 
-    private String verifyIdentityDocuments(
+    private IdentityVerificationResult verifyIdentityDocuments(
             CustomerVerificationRequest customer,
             List<DocumentSnapshot> documents) {
+
+        List<AuthBridgeDto.VerifyResponse> responses =
+                new ArrayList<>();
 
         for (DocumentSnapshot document : documents) {
 
@@ -196,21 +243,34 @@ public class VerificationService {
                             )
                     );
 
+            responses.add(response);
+
             if (!response.verified()) {
-                return String.format(
-                        "Identity verification failed for %s: %s",
-                        document.documentType(),
-                        response.statusMessage()
+                return new IdentityVerificationResult(
+                        String.format(
+                                "Identity verification failed for %s: %s",
+                                document.documentType(),
+                                response.statusMessage()
+                        ),
+                        responses
                 );
             }
         }
 
-        return null;
+        return new IdentityVerificationResult(null, responses);
     }
 
-    private String toJson(List<DocumentSnapshot> documents) {
+    private String toJson(
+            List<DocumentSnapshot> documents,
+            List<AuthBridgeDto.VerifyResponse> identityResults) {
+
         try {
-            return objectMapper.writeValueAsString(documents);
+            Map<String, Object> evidence = new LinkedHashMap<>();
+            evidence.put("documents", documents);
+            evidence.put("identityVerification", identityResults);
+
+            return objectMapper.writeValueAsString(evidence);
+
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
                     "Unable to serialize verification evidence.",
@@ -219,7 +279,10 @@ public class VerificationService {
         }
     }
 
-    private VerificationResponse toResponse(VerificationResult result) {
+    private VerificationResponse toResponse(
+            VerificationResult result,
+            List<AuthBridgeDto.VerifyResponse> identityResults) {
+
         return new VerificationResponse(
                 result.getVerificationId(),
                 result.getApplicationId(),
@@ -227,7 +290,14 @@ public class VerificationService {
                 result.getReason(),
                 result.getNameScore(),
                 result.getAddressScore(),
-                result.getVerifiedAt()
+                result.getVerifiedAt(),
+                identityResults
         );
+    }
+
+    private record IdentityVerificationResult(
+            String failureReason,
+            List<AuthBridgeDto.VerifyResponse> responses
+    ) {
     }
 }

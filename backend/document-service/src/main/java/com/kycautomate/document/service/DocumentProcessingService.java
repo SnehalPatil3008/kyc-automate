@@ -1,7 +1,9 @@
 package com.kycautomate.document.service;
 
+import com.kycautomate.document.client.AuditClient;
 import com.kycautomate.document.domain.Document;
 import com.kycautomate.document.domain.ExtractedField;
+import com.kycautomate.document.dto.AuditEventRequest;
 import com.kycautomate.document.dto.OcrFieldResult;
 import com.kycautomate.document.repository.DocumentRepository;
 import org.apache.pdfbox.Loader;
@@ -32,17 +34,19 @@ public class DocumentProcessingService {
     private final ImageQualityService imageQualityService;
     private final OcrExtractionService ocrService;
     private final double minimumConfidence;
-
+    private final AuditClient auditClient;
     public DocumentProcessingService(DocumentRepository repository,
                                      StorageService storageService,
                                      ImageQualityService imageQualityService,
                                      OcrExtractionService ocrService,
+                                     AuditClient auditClient,
                                      @Value("${kyc.ocr.minimum-confidence:50}") double minimumConfidence) {
         this.repository = repository;
         this.storageService = storageService;
         this.imageQualityService = imageQualityService;
         this.ocrService = ocrService;
         this.minimumConfidence = minimumConfidence;
+        this.auditClient = auditClient;
     }
 
     @Async("documentTaskExecutor")
@@ -57,6 +61,15 @@ public class DocumentProcessingService {
         document.setProcessingStatus("PROCESSING");
         document.setProcessingMessage("Quality checks and OCR are running.");
         repository.save(document);
+        auditClient.recordEvent(
+                new AuditEventRequest(
+                        document.getApplicationId(),
+                        "DOCUMENT_PROCESSING_STARTED",
+                        "Quality checks and OCR processing started",
+                        "document-service",
+                        "SERVICE"
+                )
+        );
 
         try {
             byte[] bytes = storageService.load(document.getStorageReference());
@@ -95,6 +108,14 @@ public class DocumentProcessingService {
             document.setProcessingStatus("EXTRACTED");
             document.setProcessingMessage("OCR extraction completed successfully.");
             repository.save(document);
+            auditClient.recordEvent(new AuditEventRequest(
+                    document.getApplicationId(),
+                    "OCR_COMPLETED",
+                    "OCR extraction completed successfully",
+                    "document-service",
+                    "SERVICE"
+            ));
+            
         } catch (Exception exception) {
             log.error("Document processing failed for {}", documentId, exception);
             fail(document, "FAILED", "Document processing failed: " + safeMessage(exception));
@@ -117,6 +138,33 @@ public class DocumentProcessingService {
         document.setProcessingStatus(status);
         document.setProcessingMessage(message);
         repository.save(document);
+        if ("UNREADABLE".equalsIgnoreCase(status)) {
+            auditClient.recordEvent(new AuditEventRequest(
+                    document.getApplicationId(),
+                    "DOCUMENT_QUALITY_FAILED",
+                    message,
+                    "document-service",
+                    "SERVICE"
+            ));
+
+            auditClient.recordEvent(new AuditEventRequest(
+                    document.getApplicationId(),
+                    "DOCUMENT_REJECTED",
+                    "Document rejected because quality checks failed",
+                    "document-service",
+                    "SERVICE"
+            ));
+
+        } else if ("FAILED".equalsIgnoreCase(status)) {
+            auditClient.recordEvent(new AuditEventRequest(
+                    document.getApplicationId(),
+                    "OCR_FAILED",
+                    message,
+                    "document-service",
+                    "SERVICE"
+            ));
+        }
+        
     }
 
     private String safeMessage(Exception exception) {
