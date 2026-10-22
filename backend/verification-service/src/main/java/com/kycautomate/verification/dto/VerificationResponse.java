@@ -1,6 +1,7 @@
 package com.kycautomate.verification.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record VerificationResponse(
         String verificationId,
@@ -9,5 +10,7 @@ public record VerificationResponse(
         String reason,
         Double nameScore,
         Double addressScore,
-        Instant verifiedAt
-) {}
+        Instant verifiedAt,
+        List<AuthBridgeDto.VerifyResponse> identityVerification
+) {
+}

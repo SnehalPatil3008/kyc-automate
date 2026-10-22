@@ -25,15 +25,27 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health")
+                        .permitAll()
+
+                        // Required by Customer and Verification Feign clients
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/documents/applications/**")
+                        .permitAll()
 
                         .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/documents/**")
+                                HttpMethod.GET,
+                                "/api/documents/*")
                         .hasAnyRole("CUSTOMER", "REVIEWER")
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/documents/*/content")
+                        .hasAnyRole("CUSTOMER", "REVIEWER")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/documents/**")
                         .hasAnyRole("CUSTOMER", "REVIEWER")
 
