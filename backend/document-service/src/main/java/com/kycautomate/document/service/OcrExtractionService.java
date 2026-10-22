@@ -59,11 +59,8 @@ public class OcrExtractionService {
             "(?i)(?:RR\\s*No\\.?|Account\\s*ID|CA\\s*No|Consumer\\s*ID|Account\\s*Number)[\\s:.-]+([0-9()A-Z/-]{5,16})");
 
     // Passport Machine Readable Zone (MRZ) Patterns
-    private static final Pattern MRZ_LINE_1 =
-            Pattern.compile("P<([A-Z]{3})([A-Z<]{5,44})");
-    private static final Pattern MRZ_LINE_2 = Pattern.compile(
-            "([A-Z0-9<]{9})[0-9]([A-Z]{3})(\\d{6})[0-9]([MF<])(\\d{6})[0-9][A-Z0-9<]{14}"
-    );
+    private static final Pattern MRZ_LINE_1 = Pattern.compile("P<IND([A-Z<]+)");
+    private static final Pattern MRZ_LINE_2 = Pattern.compile("([A-Z][0-9]{7})[<0-9A-Z]*?IND([0-9]{6})[0-9]?([MF<])([0-9]{6})");
 
     public Map<String, OcrFieldResult> extract(byte[] fileBytes, String mimeType, DocumentType docType) {
         Map<String, OcrFieldResult> extracted = new HashMap<>();
@@ -127,9 +124,6 @@ public class OcrExtractionService {
                     return extracted;
                 }
                 baseImage = preprocessCameraPhoto(rawImage);
-                if (docType == DocumentType.PASSPORT) {
-                    baseImage = enhancePassportImage(baseImage);
-                }
             }
 
             int[] angles = {0, 90, 270, 180};
@@ -289,19 +283,6 @@ public class OcrExtractionService {
         }
 
         return convertToGrayscale(scaled);
-    }
-
-    private BufferedImage enhancePassportImage(BufferedImage source) {
-        BufferedImage gray = convertToGrayscale(source);
-        BufferedImage enhanced = new BufferedImage(
-                gray.getWidth(), gray.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-
-        Graphics2D graphics = enhanced.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_RENDERING,
-                RenderingHints.VALUE_RENDER_QUALITY);
-        graphics.drawImage(gray, 0, 0, null);
-        graphics.dispose();
-        return enhanced;
     }
 
     // ==========================================
