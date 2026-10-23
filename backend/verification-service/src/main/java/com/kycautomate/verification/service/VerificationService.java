@@ -1,6 +1,7 @@
 package com.kycautomate.verification.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kycautomate.verification.client.AuditClient;
 import com.kycautomate.verification.client.CustomerApplicationClient;
@@ -164,14 +165,11 @@ public class VerificationService {
                     "VERIFICATION_COMPLETED";
         };
 
-        String auditReason =
-                "Decision: " + evaluation.decision()
-                        + ". " + evaluation.reason();
-
         auditClient.recordEvent(new AuditEventRequest(
                 applicationId,
                 eventType,
-                auditReason,
+                "Decision: " + evaluation.decision()
+                        + ". " + evaluation.reason(),
                 "verification-service",
                 "SERVICE"
         ));
@@ -209,7 +207,10 @@ public class VerificationService {
     public VerificationResponse latest(String applicationId) {
         return repository
                 .findTopByApplicationIdOrderByVerifiedAtDesc(applicationId)
-                .map(result -> toResponse(result, List.of()))
+                .map(result -> toResponse(
+                        result,
+                        readIdentityVerification(result.getEvidenceJson())
+                ))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No verification result found for application: "
                                 + applicationId
@@ -245,17 +246,54 @@ public class VerificationService {
 
             if (!response.verified()) {
                 return new IdentityVerificationResult(
-                        String.format(
-                                "Identity verification failed for %s: %s",
-                                document.documentType(),
-                                response.statusMessage()
-                        ),
+                        "Identity verification failed for "
+                                + document.documentType()
+                                + ": "
+                                + response.statusMessage(),
                         responses
                 );
             }
         }
 
         return new IdentityVerificationResult(null, responses);
+    }
+
+    private List<AuthBridgeDto.VerifyResponse> readIdentityVerification(
+            String evidenceJson) {
+
+        if (evidenceJson == null || evidenceJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(evidenceJson);
+
+            if (!root.isObject()) {
+                return List.of();
+            }
+
+            JsonNode identityNode =
+                    root.get("identityVerification");
+
+            if (identityNode == null || !identityNode.isArray()) {
+                return List.of();
+            }
+
+            return objectMapper.convertValue(
+                    identityNode,
+                    objectMapper.getTypeFactory()
+                            .constructCollectionType(
+                                    List.class,
+                                    AuthBridgeDto.VerifyResponse.class
+                            )
+            );
+
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(
+                    "Unable to read identity-verification evidence.",
+                    exception
+            );
+        }
     }
 
     private String toJson(
