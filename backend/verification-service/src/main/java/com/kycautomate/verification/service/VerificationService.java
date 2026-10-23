@@ -4,13 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kycautomate.verification.client.AuditClient;
-import com.kycautomate.verification.client.CustomerApplicationClient;
 import com.kycautomate.verification.client.DocumentServiceClient;
 import com.kycautomate.verification.domain.DocumentType;
 import com.kycautomate.verification.domain.VerificationResult;
 import com.kycautomate.verification.dto.AuditEventRequest;
 import com.kycautomate.verification.dto.AuthBridgeDto;
-import com.kycautomate.verification.dto.CustomerApplicationSnapshot;
 import com.kycautomate.verification.dto.CustomerVerificationRequest;
 import com.kycautomate.verification.dto.DocumentSnapshot;
 import com.kycautomate.verification.dto.VerificationResponse;
@@ -18,23 +16,16 @@ import com.kycautomate.verification.repository.VerificationResultRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class VerificationService {
 
-    private static final DateTimeFormatter DOB_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
     private final DocumentServiceClient documentClient;
-    private final CustomerApplicationClient customerApplicationClient;
     private final VerificationRuleEngine ruleEngine;
     private final SimulatedIdentityVerificationService identityService;
     private final VerificationResultRepository repository;
@@ -44,7 +35,6 @@ public class VerificationService {
 
     public VerificationService(
             DocumentServiceClient documentClient,
-            CustomerApplicationClient customerApplicationClient,
             VerificationRuleEngine ruleEngine,
             SimulatedIdentityVerificationService identityService,
             VerificationResultRepository repository,
@@ -53,7 +43,6 @@ public class VerificationService {
             AuditClient auditClient) {
 
         this.documentClient = documentClient;
-        this.customerApplicationClient = customerApplicationClient;
         this.ruleEngine = ruleEngine;
         this.identityService = identityService;
         this.repository = repository;
@@ -63,23 +52,9 @@ public class VerificationService {
     }
 
     @Transactional
-    public VerificationResponse verify(String applicationId) {
-
-        long numericApplicationId;
-
-        try {
-            numericApplicationId = Long.parseLong(applicationId);
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(
-                    "Application ID must be a numeric Customer Service application ID."
-            );
-        }
-
-        CustomerApplicationSnapshot snapshot =
-                customerApplicationClient.getSnapshot(numericApplicationId);
-
-        CustomerVerificationRequest customer =
-                createCustomerVerificationRequest(snapshot);
+    public VerificationResponse verify(
+            String applicationId,
+            CustomerVerificationRequest customer) {
 
         List<DocumentSnapshot> documents =
                 documentClient.getActiveDocuments(applicationId);
@@ -100,19 +75,15 @@ public class VerificationService {
             result.setApplicationId(applicationId);
             result.setDecision("RESUBMISSION_REQUIRED");
             result.setReason(reason);
-            result.setEvidenceJson(
-                    toJson(documents, identityResults)
-            );
+            result.setEvidenceJson(toJson(documents, identityResults));
 
             result = repository.saveAndFlush(result);
 
-            auditClient.recordEvent(new AuditEventRequest(
+            recordAudit(
                     applicationId,
                     "RESUBMISSION_REQUESTED",
-                    reason,
-                    "verification-service",
-                    "SERVICE"
-            ));
+                    reason
+            );
 
             return toResponse(result, identityResults);
         }
@@ -144,9 +115,7 @@ public class VerificationService {
         result.setReason(evaluation.reason());
         result.setNameScore(evaluation.nameScore());
         result.setAddressScore(evaluation.addressScore());
-        result.setEvidenceJson(
-                toJson(documents, identityResults)
-        );
+        result.setEvidenceJson(toJson(documents, identityResults));
 
         result = repository.saveAndFlush(result);
 
@@ -165,42 +134,14 @@ public class VerificationService {
                     "VERIFICATION_COMPLETED";
         };
 
-        auditClient.recordEvent(new AuditEventRequest(
+        recordAudit(
                 applicationId,
                 eventType,
                 "Decision: " + evaluation.decision()
-                        + ". " + evaluation.reason(),
-                "verification-service",
-                "SERVICE"
-        ));
+                        + ". " + evaluation.reason()
+        );
 
         return toResponse(result, identityResults);
-    }
-
-    private CustomerVerificationRequest createCustomerVerificationRequest(
-            CustomerApplicationSnapshot snapshot) {
-
-        String fullAddress = List.of(
-                        snapshot.applicantAddress(),
-                        snapshot.applicantCity(),
-                        snapshot.applicantState(),
-                        snapshot.applicantPostalCode()
-                )
-                .stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .collect(Collectors.joining(", "));
-
-        String dob = snapshot.applicantDob() == null
-                ? null
-                : snapshot.applicantDob().format(DOB_FORMAT);
-
-        return new CustomerVerificationRequest(
-                snapshot.applicantName(),
-                dob,
-                fullAddress
-        );
     }
 
     @Transactional(readOnly = true)
@@ -258,6 +199,25 @@ public class VerificationService {
         return new IdentityVerificationResult(null, responses);
     }
 
+    private String toJson(
+            List<DocumentSnapshot> documents,
+            List<AuthBridgeDto.VerifyResponse> identityResults) {
+
+        try {
+            Map<String, Object> evidence = new LinkedHashMap<>();
+            evidence.put("documents", documents);
+            evidence.put("identityVerification", identityResults);
+
+            return objectMapper.writeValueAsString(evidence);
+
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(
+                    "Unable to serialize verification evidence.",
+                    exception
+            );
+        }
+    }
+
     private List<AuthBridgeDto.VerifyResponse> readIdentityVerification(
             String evidenceJson) {
 
@@ -296,25 +256,6 @@ public class VerificationService {
         }
     }
 
-    private String toJson(
-            List<DocumentSnapshot> documents,
-            List<AuthBridgeDto.VerifyResponse> identityResults) {
-
-        try {
-            Map<String, Object> evidence = new LinkedHashMap<>();
-            evidence.put("documents", documents);
-            evidence.put("identityVerification", identityResults);
-
-            return objectMapper.writeValueAsString(evidence);
-
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException(
-                    "Unable to serialize verification evidence.",
-                    exception
-            );
-        }
-    }
-
     private VerificationResponse toResponse(
             VerificationResult result,
             List<AuthBridgeDto.VerifyResponse> identityResults) {
@@ -329,6 +270,20 @@ public class VerificationService {
                 result.getVerifiedAt(),
                 identityResults
         );
+    }
+
+    private void recordAudit(
+            String applicationId,
+            String eventType,
+            String reason) {
+
+        auditClient.recordEvent(new AuditEventRequest(
+                applicationId,
+                eventType,
+                reason,
+                "verification-service",
+                "SERVICE"
+        ));
     }
 
     private record IdentityVerificationResult(

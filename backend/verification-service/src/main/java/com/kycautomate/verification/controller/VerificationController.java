@@ -27,8 +27,10 @@ public class VerificationController {
 
     @PostMapping("/applications/{applicationId}")
     public VerificationResponse verify(
-            @PathVariable String applicationId) {
-        return verificationService.verify(applicationId);
+            @PathVariable String applicationId,
+            @Valid @RequestBody CustomerVerificationRequest request) {
+
+        return verificationService.verify(applicationId, request);
     }
 
     @GetMapping("/applications/{applicationId}/latest")
