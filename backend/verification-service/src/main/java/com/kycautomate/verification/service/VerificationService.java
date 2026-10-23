@@ -62,9 +62,7 @@ public class VerificationService {
     }
 
     @Transactional
-    public VerificationResponse verify(
-            String applicationId,
-            CustomerVerificationRequest ignoredCustomerData) {
+    public VerificationResponse verify(String applicationId) {
 
         long numericApplicationId;
 
