@@ -10,6 +10,9 @@ public record VerificationResponse(
         String reason,
         Double nameScore,
         Double addressScore,
+        String customerName,
+        String dob,
+        String address,
         Instant verifiedAt,
         List<AuthBridgeDto.VerifyResponse> identityVerification
 ) {

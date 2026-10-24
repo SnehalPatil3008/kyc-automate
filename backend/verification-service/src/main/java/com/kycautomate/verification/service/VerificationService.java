@@ -76,6 +76,9 @@ public class VerificationService {
             result.setDecision("RESUBMISSION_REQUIRED");
             result.setReason(reason);
             result.setEvidenceJson(toJson(documents, identityResults));
+            result.setCustomerName(customer.customerName());
+            result.setCustomerDob(customer.dob());
+            result.setCustomerAddress(customer.address());
 
             result = repository.saveAndFlush(result);
 
@@ -116,7 +119,9 @@ public class VerificationService {
         result.setNameScore(evaluation.nameScore());
         result.setAddressScore(evaluation.addressScore());
         result.setEvidenceJson(toJson(documents, identityResults));
-
+        result.setCustomerName(customer.customerName());
+        result.setCustomerDob(customer.dob());
+        result.setCustomerAddress(customer.address());
         result = repository.saveAndFlush(result);
 
         String eventType = switch (evaluation.decision()) {
@@ -267,6 +272,9 @@ public class VerificationService {
                 result.getReason(),
                 result.getNameScore(),
                 result.getAddressScore(),
+                result.getCustomerName(),
+                result.getCustomerDob(),
+                result.getCustomerAddress(),
                 result.getVerifiedAt(),
                 identityResults
         );

@@ -12,10 +12,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import feign.FeignException;
 import feign.RetryableException;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
+	private static final Logger log =
+		    LoggerFactory.getLogger(GlobalExceptionHandler.class);
     @ExceptionHandler(com.kycautomate.decision.exception.ReviewNotFoundException.class)
     public ResponseEntity<Map<String, String>> notFound(
             com.kycautomate.decision.exception.ReviewNotFoundException ex) {
@@ -59,6 +61,28 @@ public class GlobalExceptionHandler {
                 "Duplicate or concurrent operation"));
     }
 
+//    @ExceptionHandler({
+//        FeignException.class,
+//        RetryableException.class
+//    })
+//    public ResponseEntity<Map<String, String>> downstream(
+//            FeignException ex) {
+//
+//        if (ex.status() == 409) {
+//            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+//                "error", "The application or dependent operation is not in the required state"));
+//        }
+//        if (ex.status() == 404) {
+//            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+//                "error", "The requested dependent resource was not found"));
+//        }
+//        return ResponseEntity.status(
+//            HttpStatus.BAD_GATEWAY)
+//            .body(Map.of(
+//                "error",
+//                "Dependent microservice request failed"));
+//    }
+    
     @ExceptionHandler({
         FeignException.class,
         RetryableException.class
@@ -66,18 +90,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> downstream(
             FeignException ex) {
 
+        log.error(
+            "Dependent microservice request failed. Status: {}, Request: {}, Response: {}",
+            ex.status(),
+            ex.request() != null ? ex.request().httpMethod()
+                + " " + ex.request().url() : "unknown",
+            ex.contentUTF8(),
+            ex
+        );
+
         if (ex.status() == 409) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                 "error", "The application or dependent operation is not in the required state"));
         }
+
         if (ex.status() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                 "error", "The requested dependent resource was not found"));
         }
-        return ResponseEntity.status(
-            HttpStatus.BAD_GATEWAY)
+
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
             .body(Map.of(
-                "error",
-                "Dependent microservice request failed"));
+                "error", "Dependent microservice request failed"));
     }
 }
