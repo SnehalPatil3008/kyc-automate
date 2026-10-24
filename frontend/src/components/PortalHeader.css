@@ -40,36 +40,7 @@
   font-weight: 650;
 }
 .logout-button:hover { background: #f7f9fc; }
-.portal-sidebar {
-  position: fixed;
-  z-index: 5;
-  top: 72px;
-  bottom: 0;
-  left: 0;
-  width: 238px;
-  padding: 24px 10px;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  margin-bottom: 8px;
-  padding: 13px 18px;
-  border: 0;
-  border-radius: 9px;
-  color: #50627b;
-  background: transparent;
-  font-size: 14px;
-  font-weight: 650;
-  text-align: left;
-}
-.sidebar-link:first-letter { color: var(--navy); font-size: 20px; }
-.sidebar-link:hover, .sidebar-link.active { color: var(--blue); background: #edf4ff; }
 @media (max-width: 600px) {
   .portal-header { padding: 0 18px; }
   .role-label { display: none; }
-  .portal-sidebar { display: none; }
 }
