@@ -1,0 +1,9 @@
+.document-upload h3, .document-status h3 { margin-bottom: 5px; color: var(--navy); font-size: 16px; }
+.component-heading p { margin-bottom: 18px; color: var(--muted); font-size: 13px; }
+.document-upload label { display: block; margin-bottom: 14px; color: var(--text); font-size: 13px; font-weight: 650; }
+.document-upload select, .document-upload input[type="file"] { display: block; width: 100%; margin-top: 7px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font-size: 13px; }
+.document-upload input[type="file"] { padding: 8px; }
+.document-upload button { width: 100%; margin-top: 2px; }
+.component-message { margin: 12px 0 0; font-size: 13px; }
+.success-text { color: var(--success); }
+.error-text { color: var(--danger); }

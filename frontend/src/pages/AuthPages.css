@@ -1,0 +1,23 @@
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 16px; background: linear-gradient(135deg, #eef4fc, #f8fafc); }
+.auth-card { width: min(100%, 430px); padding: 38px; background: #fff; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 18px 45px rgba(16, 45, 80, .1); }
+.register-card { width: min(100%, 650px); }
+.auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; color: var(--navy); font-size: 18px; font-weight: 750; }
+.auth-brand .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; color: #fff; background: var(--navy); }
+.auth-heading { margin-bottom: 26px; }
+.auth-heading .eyebrow { margin-bottom: 8px; color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.auth-heading h1 { margin: 0 0 8px; color: var(--navy); font-size: 30px; letter-spacing: -.03em; }
+.auth-heading p:last-child { margin-bottom: 0; color: var(--muted); font-size: 14px; }
+.auth-card form { display: grid; gap: 16px; }
+.auth-card label { display: grid; gap: 7px; color: var(--text); font-size: 13px; font-weight: 650; }
+.auth-card input { width: 100%; padding: 11px 12px; border: 1px solid #cfd7e3; border-radius: 8px; outline: 0; color: var(--text); background: #fff; font-size: 14px; }
+.auth-card input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.auth-submit { margin-top: 6px; padding: 12px; border: 0; border-radius: 8px; color: #fff; background: var(--blue); font-weight: 700; }
+.auth-submit:hover { background: #1d4ed8; }
+.auth-footer { margin: 3px 0 0; color: var(--muted); text-align: center; font-size: 13px; }
+.auth-footer button { padding: 0; border: 0; color: var(--blue); background: transparent; font-weight: 700; }
+.auth-error { margin: 0; color: var(--danger); font-size: 13px; }
+.register-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.register-form label:nth-child(4), .register-form label:nth-child(5), .register-form label:nth-child(6) { grid-column: span 2; }
+.register-form button, .register-form p { grid-column: span 2; }
+.register-form button { padding: 12px; border: 0; border-radius: 8px; color: #fff; background: var(--blue); font-weight: 700; }
+@media (max-width: 600px) { .auth-card { padding: 26px 20px; } .register-form { grid-template-columns: 1fr; } .register-form label, .register-form button, .register-form p { grid-column: span 1 !important; } }
