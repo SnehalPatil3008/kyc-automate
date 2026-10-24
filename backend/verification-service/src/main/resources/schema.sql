@@ -6,6 +6,9 @@ CREATE TABLE verification_results (
     name_score FLOAT,
     address_score FLOAT,
     evidence_json CLOB,
+    customer_name VARCHAR2(200),
+	customer_dob VARCHAR2(30),
+	customer_address VARCHAR2(1000),
     verified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 

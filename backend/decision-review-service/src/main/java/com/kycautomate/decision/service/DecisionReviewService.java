@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.kycautomate.decision.client.AuditClient;
 import com.kycautomate.decision.client.CustomerClient;
 import com.kycautomate.decision.client.VerificationClient;
 import com.kycautomate.decision.dto.*;
@@ -24,7 +25,8 @@ public class DecisionReviewService {
     private final VerificationClient verificationClient;
     private final ReviewCaseRepository repository;
     private final TransactionTemplate transactions;
-
+    private final AuditClient auditClient;
+    
     private static final List<ReviewState> ACTIVE_STATES =
         List.of(
             ReviewState.PENDING_SYNC,
@@ -36,12 +38,14 @@ public class DecisionReviewService {
             CustomerClient customerClient,
             VerificationClient verificationClient,
             ReviewCaseRepository repository,
-            TransactionTemplate transactions) {
+            TransactionTemplate transactions,
+            AuditClient auditClient) {
 
         this.customerClient = customerClient;
         this.verificationClient = verificationClient;
         this.repository = repository;
         this.transactions = transactions;
+        this.auditClient = auditClient;
     }
 
     // Explicit orchestration entry point. /evaluate consumes an existing result;
@@ -103,8 +107,70 @@ public class DecisionReviewService {
     }
 
     public ReviewResponse evaluate(Long applicationId) {
-        return evaluateVerification(applicationId,
-            verificationClient.getLatest(applicationId.toString()));
+
+        VerificationResponse verification =
+            verificationClient.getLatest(
+                applicationId.toString()
+            );
+
+        ApplicationSnapshot snapshot =
+            customerClient.getSnapshot(applicationId);
+
+        if (snapshot == null
+                || !applicationId.equals(
+                    snapshot.applicationId())
+                || snapshot.version() == null) {
+
+            throw new IllegalStateException(
+                "Invalid application snapshot"
+            );
+        }
+
+        /*
+         * The frontend has already completed verification,
+         * but the application is still SUBMITTED.
+         * Move it to PROCESSING before creating the review.
+         */
+        if ("SUBMITTED".equals(
+                snapshot.applicationStatus())) {
+
+            String reference =
+                "START-" + applicationId
+                + "-" + snapshot.version();
+
+            ApplicationStatusUpdateResponse updated =
+                customerClient.updateStatus(
+                    applicationId,
+                    new ApplicationStatusUpdateRequest(
+                        "PROCESSING",
+                        "Verification completed; evaluating result",
+                        reference,
+                        snapshot.version()
+                    )
+                );
+
+            if (updated == null
+                    || !applicationId.equals(
+                        updated.applicationId())
+                    || !reference.equals(
+                        updated.decisionReference())
+                    || !"PROCESSING".equals(
+                        updated.applicationStatus())
+                    || updated.version() == null
+                    || !Objects.equals(
+                        updated.version(),
+                        snapshot.version() + 1)) {
+
+                throw new IllegalStateException(
+                    "Invalid processing-start response"
+                );
+            }
+        }
+
+        return evaluateVerification(
+            applicationId,
+            verification
+        );
     }
 
     private ReviewResponse evaluateVerification(
@@ -216,7 +282,20 @@ public class DecisionReviewService {
             return repository.saveAndFlush(created);
         });
 
-        return synchronize(review.getReviewId());
+        ReviewResponse response =
+                synchronize(review.getReviewId());
+
+        if ("MANUAL_REVIEW".equals(target)) {
+            recordAudit(
+                    applicationId,
+                    "MANUAL_REVIEW_ASSIGNED",
+                    finalReason,
+                    "decision-service",
+                    "SERVICE"
+            );
+        }
+
+        return response;
     }
 
     public ReviewResponse submitReview(
@@ -291,7 +370,30 @@ public class DecisionReviewService {
             return repository.saveAndFlush(found);
         });
 
-        return synchronize(review.getReviewId());
+        ReviewResponse response =
+                synchronize(review.getReviewId());
+
+        String eventType = switch (request.decision()) {
+            case "APPROVED" -> "REVIEWER_APPROVED";
+            case "REJECTED" -> "REVIEWER_REJECTED";
+            case "RESUBMISSION_REQUIRED" ->
+                    "RESUBMISSION_REQUESTED";
+            case "MANUAL_REVIEW" ->
+                    "MANUAL_REVIEW_ASSIGNED";
+            default -> null;
+        };
+
+        if (eventType != null) {
+            recordAudit(
+                    review.getApplicationId(),
+                    eventType,
+                    actionReason,
+                    reviewer,
+                    "REVIEWER"
+            );
+        }
+
+        return response;
     }
 
     public ReviewResponse synchronize(Long reviewId) {
@@ -452,5 +554,26 @@ public class DecisionReviewService {
         if (!types.isEmpty()) throw new IllegalArgumentException(
             "requestedDocumentTypes is only valid for RESUBMISSION_REQUIRED");
         return null;
+    }
+    
+    private void recordAudit(
+            Long applicationId,
+            String eventType,
+            String reason,
+            String actor,
+            String actorRole) {
+
+        try {
+            auditClient.recordEvent(new AuditEventRequest(
+                    String.valueOf(applicationId),
+                    eventType,
+                    reason,
+                    actor,
+                    actorRole
+            ));
+        } catch (Exception exception) {
+            System.err.println(
+                    "Audit event failed: " + exception.getMessage());
+        }
     }
 }

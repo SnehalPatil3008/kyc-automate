@@ -18,7 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
+import org.springframework.core.annotation.Order;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 @Configuration
 public class SecurityConfig {
 
@@ -35,7 +36,21 @@ public class SecurityConfig {
         return new InMemoryUserDetailsManager(User.withUsername(username)
             .password(encoder.encode(password)).roles("REVIEWER").build());
     }
+    
+    @Bean("internalVerificationUsers")
+    public InMemoryUserDetailsManager internalVerificationUsers(
+            PasswordEncoder encoder,
+            @Value("${internal.verification.password}")
+            String password) {
 
+        return new InMemoryUserDetailsManager(
+            User.withUsername("verification-service")
+                .password(encoder.encode(password))
+                .roles("VERIFICATION_SERVICE")
+                .build()
+        );
+    }
+    
     @Bean("reviewerLoginAuthenticationManager")
     public AuthenticationManager reviewerLoginAuthenticationManager(
             @Qualifier("reviewerUsers") UserDetailsService users, PasswordEncoder encoder) {
@@ -43,8 +58,46 @@ public class SecurityConfig {
         provider.setPasswordEncoder(encoder);
         return new ProviderManager(provider);
     }
-
+    
     @Bean
+    @Order(1)
+    public SecurityFilterChain internalSecurityFilterChain(
+            HttpSecurity http,
+            @Qualifier("internalVerificationUsers")
+            InMemoryUserDetailsManager users,
+            PasswordEncoder encoder) throws Exception {
+
+        var provider = new DaoAuthenticationProvider(users);
+        provider.setPasswordEncoder(encoder);
+
+        http
+            .securityMatcher("/api/internal/**")
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
+                )
+            )
+            .authenticationManager(
+                new ProviderManager(provider)
+            )
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/internal/decisions/applications/*/evaluate"
+                )
+                .hasRole("VERIFICATION_SERVICE")
+                .anyRequest()
+                .denyAll()
+            )
+            .httpBasic(basic -> {});
+
+        return http.build();
+    }
+    
+    
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http, @Qualifier("reviewerUsers") UserDetailsService users, JwtCodec codec) throws Exception {
         http.csrf(csrf -> csrf.disable())

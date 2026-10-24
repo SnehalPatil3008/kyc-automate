@@ -8,15 +8,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-
+import com.kycautomate.verification.client.DecisionReviewClient;
+import com.kycautomate.verification.client.DecisionReviewClient;
 @RestController
 @RequestMapping("/api/verifications")
 public class VerificationController {
 
     private final VerificationService verificationService;
+    private final DecisionReviewClient decisionReviewClient;
+    
+    public VerificationController(
+            VerificationService verificationService,
+            DecisionReviewClient decisionReviewClient) {
 
-    public VerificationController(VerificationService verificationService) {
         this.verificationService = verificationService;
+        this.decisionReviewClient = decisionReviewClient;
     }
 
     @PostMapping("/applications/{applicationId}")
@@ -24,7 +30,17 @@ public class VerificationController {
             @PathVariable String applicationId,
             @Valid @RequestBody CustomerVerificationRequest request) {
 
-        return verificationService.verify(applicationId, request);
+        VerificationResponse response =
+                verificationService.verify(
+                    applicationId,
+                    request
+                );
+
+            if (!"PROCESSING".equals(response.decision())) {
+                decisionReviewClient.evaluate(applicationId);
+            }
+
+            return response;
     }
 
     @GetMapping("/applications/{applicationId}/latest")

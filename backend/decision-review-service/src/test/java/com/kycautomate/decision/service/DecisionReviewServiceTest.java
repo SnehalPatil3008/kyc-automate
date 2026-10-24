@@ -24,6 +24,7 @@ class DecisionReviewServiceTest {
     @Mock VerificationClient verification;
     @Mock ReviewCaseRepository repository;
     @Mock TransactionTemplate transactions;
+    @Mock AuditClient auditClient;
     DecisionReviewService service;
 
     @BeforeEach @SuppressWarnings("unchecked")
@@ -36,7 +37,7 @@ class DecisionReviewServiceTest {
                 .accept(mock(TransactionStatus.class));
             return null;
         }).when(transactions).executeWithoutResult(any());
-        service = new DecisionReviewService(customer, verification, repository, transactions);
+        service = new DecisionReviewService(customer, verification, repository, transactions,auditClient);
     }
     private ApplicationSnapshot snapshot(LocalDateTime submitted) {
         return new ApplicationSnapshot(4L, "KYC-TEST", 2L, "Test Customer",

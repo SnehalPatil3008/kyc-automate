@@ -27,6 +27,15 @@ public class VerificationResult {
     @Column(name = "address_score")
     private Double addressScore;
 
+    @Column(name = "customer_name", length = 200)
+    private String customerName;
+
+    @Column(name = "customer_dob", length = 30)
+    private String customerDob;
+
+    @Column(name = "customer_address", length = 1000)
+    private String customerAddress;
+    
     @Lob
     @Column(name = "evidence_json")
     private String evidenceJson;
@@ -53,5 +62,29 @@ public class VerificationResult {
     public void setAddressScore(Double addressScore) { this.addressScore = addressScore; }
     public String getEvidenceJson() { return evidenceJson; }
     public void setEvidenceJson(String evidenceJson) { this.evidenceJson = evidenceJson; }
-    public Instant getVerifiedAt() { return verifiedAt; }
+    public Instant getVerifiedAt() { return verifiedAt; 
+    }
+    public String getCustomerName() {
+        return customerName;
+    }
+
+    public void setCustomerName(String customerName) {
+        this.customerName = customerName;
+    }
+
+    public String getCustomerDob() {
+        return customerDob;
+    }
+
+    public void setCustomerDob(String customerDob) {
+        this.customerDob = customerDob;
+    }
+
+    public String getCustomerAddress() {
+        return customerAddress;
+    }
+
+    public void setCustomerAddress(String customerAddress) {
+        this.customerAddress = customerAddress;
+    }
 }
