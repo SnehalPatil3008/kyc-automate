@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../services/api";
 import DocumentUpload from "../components/DocumentUpload";
 import DocumentStatus from "../components/DocumentStatus";
@@ -8,6 +8,7 @@ import "./CustomerDashboard.css";
 const progressSteps = ["Application created", "Documents uploaded", "Review details", "Verification in progress", "Decision completed"];
 const finalStatuses = ["APPROVED", "REJECTED"];
 const submittedStatuses = ["SUBMITTED", "PROCESSING", "AUTO_CHECKS_PASSED", "MANUAL_REVIEW"];
+const reviewerDecisionStatuses = ["APPROVED", "REJECTED", "RESUBMISSION_REQUIRED"];
 
 function progressStep(application, complete) {
   if (!application) return 0;
@@ -97,13 +98,12 @@ export default function CustomerDashboard() {
   const applicationCompleteness = application ? completeness[application.applicationId] : null;
   const activeStep = progressStep(application, applicationCompleteness?.complete);
   const verificationResult = application ? verificationResults[application.applicationId] : null;
+  const hasReviewerDecision = application && reviewerDecisionStatuses.includes(application.applicationStatus);
   const detailsLocked = application && !["DRAFT", "RESUBMISSION_REQUIRED"].includes(application.applicationStatus);
   const canSubmit = application?.applicationStatus === "DRAFT" && applicationCompleteness?.complete === true &&
     documentState.allDocumentsProcessed === true && documentState.hasInvalidDocument === false;
   const canResubmit = application?.applicationStatus === "RESUBMISSION_REQUIRED" && applicationCompleteness?.complete === true &&
     documentState.allDocumentsProcessed === true && documentState.hasInvalidDocument === false;
-  const resultText = useMemo(() => verificationResult ? (verificationResult.reason || statusLabel(verificationResult)) : "", [verificationResult]);
-
   function updateApplication(updatedApplication) {
     setApplications((current) => current.map((item) => item.applicationId === updatedApplication.applicationId ? updatedApplication : item));
   }
@@ -222,23 +222,29 @@ export default function CustomerDashboard() {
 
             {application.applicationStatus === "DRAFT" && <section className="submit-panel dashboard-card"><button className="primary-action" onClick={() => submitApplication(application.applicationId)} disabled={submittingApplication === application.applicationId || !canSubmit}>{submittingApplication === application.applicationId ? "Processing..." : "Submit Application"}</button><div><p>By submitting, you confirm that the information provided is accurate.</p>{documentState.hasInvalidDocument && <p className="error-text">Replace the unreadable or failed document before submitting.</p>}{!documentState.allDocumentsProcessed && !documentState.hasInvalidDocument && applicationCompleteness?.complete && <p className="processing-message">Please wait while your documents are being processed.</p>}</div></section>}
             {application.applicationStatus === "RESUBMISSION_REQUIRED" && <section className="submit-panel dashboard-card"><button className="primary-action" onClick={() => resubmitApplication(application.applicationId)} disabled={resubmittingApplication === application.applicationId || !canResubmit}>{resubmittingApplication === application.applicationId ? "Processing..." : "Resubmit Application"}</button><p>Replace the requested document, then resubmit after it is extracted.</p></section>}
-            {(verificationResult || application.applicationStatus === "SUBMITTED") && (
-  <section className="verification-panel dashboard-card">
+            {(hasReviewerDecision || verificationResult || application.applicationStatus === "SUBMITTED") && (
+  <section className={`verification-panel dashboard-card verification-${application.applicationStatus?.toLowerCase()}`}>
     <div>
-      <p className="eyebrow">VERIFICATION STATUS</p>
+      <p className="eyebrow">{hasReviewerDecision ? "REVIEWER DECISION" : "VERIFICATION STATUS"}</p>
 
       <h2>
-        {verificationResult
+        {hasReviewerDecision
+          ? application.applicationStatus.replaceAll("_", " ")
+          : verificationResult
           ? statusLabel(verificationResult)
           : "Verification in progress"}
       </h2>
 
       <p>
-        {verificationResult?.reason ||
+        {hasReviewerDecision
+          ? application.statusReason || (application.applicationStatus === "APPROVED"
+              ? "Your KYC application has been approved by the reviewer."
+              : "The reviewer has completed the decision.")
+          : verificationResult?.reason ||
           "Your application has been submitted and is being checked."}
       </p>
 
-      {!verificationResult && (
+      {!hasReviewerDecision && !verificationResult && (
         <small>
           Please wait while your verification is being processed.
         </small>
