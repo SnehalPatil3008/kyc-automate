@@ -1,0 +1,12 @@
+.role-dashboard { width: min(1080px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0; }
+.role-dashboard .eyebrow { margin-bottom: 8px; color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+.role-dashboard h1 { margin: 0 0 8px; color: var(--navy); font-size: 36px; }
+.role-intro { margin-bottom: 30px; color: var(--muted); }
+.role-placeholder { padding: 46px 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); text-align: center; box-shadow: 0 8px 24px rgba(23, 59, 104, .05); }
+.placeholder-icon { display: grid; width: 48px; height: 48px; margin: 0 auto 16px; place-items: center; border-radius: 14px; color: var(--blue); background: var(--blue-soft); font-weight: 800; }
+.role-placeholder h1, .role-placeholder h2 { margin-bottom: 8px; color: var(--navy); }
+.role-placeholder p { margin-bottom: 0; color: var(--muted); }
+.access-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; }
+.access-page .role-placeholder { width: min(100%, 480px); }
+.access-page button { margin-top: 22px; padding: 11px 16px; border: 0; border-radius: 8px; color: #fff; background: var(--blue); font-weight: 650; }
+@media (max-width: 600px) { .role-dashboard { width: min(100% - 32px, 600px); padding-top: 34px; } .role-dashboard h1 { font-size: 30px; } }

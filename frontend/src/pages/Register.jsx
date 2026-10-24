@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import "./AuthPages.css";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -59,10 +60,12 @@ export default function Register() {
   }
 
   return (
-    <main>
-      <h1>Create Account</h1>
+    <main className="auth-page">
+      <section className="auth-card register-card">
+      <div className="auth-brand"><span className="brand-mark">K</span><span>KYC Automate</span></div>
+      <div className="auth-heading"><p className="eyebrow">GET STARTED</p><h1>Create your account</h1><p>Enter your details to begin your KYC verification.</p></div>
 
-      <form onSubmit={handleSubmit}>
+      <form className="register-form" onSubmit={handleSubmit}>
         <input
           name="fullName"
           placeholder="Full name"
@@ -141,8 +144,9 @@ export default function Register() {
         <button type="submit">Register</button>
 
         {message && <p>{message}</p>}
-        {error && <p>{error}</p>}
+        {error && <p className="auth-error">{error}</p>}
       </form>
+      </section>
     </main>
   );
 }
