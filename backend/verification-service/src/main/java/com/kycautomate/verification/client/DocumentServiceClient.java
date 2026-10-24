@@ -7,7 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 
-@FeignClient(name = "document-service", path = "/api/documents")
+@FeignClient(
+        name = "document-service",
+        url = "${services.document.url}",
+        path = "/api/documents"
+)
 public interface DocumentServiceClient {
 
     @GetMapping("/applications/{applicationId}")

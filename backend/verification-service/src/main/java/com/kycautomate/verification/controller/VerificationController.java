@@ -1,5 +1,5 @@
 package com.kycautomate.verification.controller;
-import org.springframework.web.bind.annotation.CrossOrigin;
+//import org.springframework.web.bind.annotation.CrossOrigin;
 import com.kycautomate.verification.dto.CustomerVerificationRequest;
 import com.kycautomate.verification.dto.VerificationResponse;
 import com.kycautomate.verification.service.VerificationService;
@@ -11,12 +11,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/verifications")
-@CrossOrigin(origins = {
-        "http://localhost:8082",
-        "http://127.0.0.1:8082",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500"
-})
 public class VerificationController {
 
     private final VerificationService verificationService;
@@ -26,8 +20,10 @@ public class VerificationController {
     }
 
     @PostMapping("/applications/{applicationId}")
-    public VerificationResponse verify(@PathVariable String applicationId,
-                                       @Valid @RequestBody CustomerVerificationRequest request) {
+    public VerificationResponse verify(
+            @PathVariable String applicationId,
+            @Valid @RequestBody CustomerVerificationRequest request) {
+
         return verificationService.verify(applicationId, request);
     }
 
