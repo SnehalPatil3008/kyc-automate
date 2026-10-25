@@ -1,6 +1,5 @@
 package com.kycautomate.gateway.security;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
@@ -18,14 +17,13 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 import reactor.core.publisher.Mono;
@@ -102,13 +100,13 @@ public class SecurityConfig {
                                 "/api/reviews/**",
                                 "/api/decisions/**"
                         )
-                        .hasAnyRole("CUSTOMER","REVIEWER")
+                        .hasAnyRole("CUSTOMER", "REVIEWER")
 
                         .pathMatchers("/api/audit/**")
                         .hasRole("ADMIN")
 
                         .pathMatchers("/api/verifications/**")
-                        .hasAnyRole("CUSTOMER","REVIEWER", "ADMIN")
+                        .hasAnyRole("CUSTOMER", "REVIEWER", "ADMIN")
 
                         .anyExchange()
                         .authenticated()
@@ -124,7 +122,7 @@ public class SecurityConfig {
     }
 
     private Converter<Jwt, Mono<AbstractAuthenticationToken>>
-    jwtAuthenticationConverter() {
+            jwtAuthenticationConverter() {
 
         return jwt -> {
             List<String> roles =

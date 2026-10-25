@@ -19,6 +19,8 @@ public record AuditEventRequest(
         String actor,
 
         @NotBlank
-        String actorRole
+        String actorRole,
+
+        String documentType
 ) {
 }

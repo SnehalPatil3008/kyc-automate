@@ -36,18 +36,34 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
 	List<Object[]> countEventsByTypeBetween(@Param("from") Instant from, @Param("to") Instant to);
 
 	@Query("""
-			SELECT a
-			FROM AuditEvent a
-			WHERE (:applicationId IS NULL
-			       OR a.applicationId = :applicationId)
-			  AND (:eventType IS NULL
-			       OR a.eventType = :eventType)
-			  AND (:actor IS NULL
-			       OR a.actor = :actor)
-			ORDER BY a.eventTimestamp ASC
-			""")
-	List<AuditEvent> searchEvents(@Param("applicationId") String applicationId, @Param("eventType") EventType eventType,
-			@Param("actor") String actor);
+	        SELECT a
+	        FROM AuditEvent a
+	        WHERE (:applicationId IS NULL
+	               OR a.applicationId = :applicationId)
+	          AND (:eventType IS NULL
+	               OR a.eventType = :eventType)
+	          AND (:reviewer IS NULL
+	               OR a.actor = :reviewer)
+	          AND (:documentType IS NULL
+	               OR a.documentType = :documentType)
+	          AND (:fromTime IS NULL
+	               OR a.eventTimestamp >= :fromTime)
+	          AND (:toTime IS NULL
+	               OR a.eventTimestamp <= :toTime)
+	        ORDER BY a.eventTimestamp ASC
+	        """)
+	List<AuditEvent> searchEvents(
+	        @Param("applicationId") String applicationId,
+	        @Param("eventType") EventType eventType,
+	        @Param("reviewer") String reviewer,
+	        @Param("documentType") String documentType,
+	        @Param("fromTime") Instant fromTime,
+	        @Param("toTime") Instant toTime
+	);
 	
 	List<AuditEvent> findAllByOrderByEventTimestampAsc();
+	List<AuditEvent> findTop10ByOrderByEventTimestampDesc();
+	List<AuditEvent> findByApplicationIdInOrderByEventTimestampAsc(
+	        List<String> applicationIds
+	);
 }
