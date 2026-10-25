@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.stream.Stream;
 
 @Service
@@ -127,12 +130,13 @@ public class VerificationRuleEngine {
                 );
                 verificationFailed = true;
             } else {
-                String formDob = normalizeDate(customer.dob());
+                LocalDate formDob = parseDate(customer.dob());
 
                 boolean dobMismatch = datesOfBirth.stream()
-                        .map(this::normalizeDate)
+                        .map(this::parseDate)
                         .anyMatch(documentDob ->
-                                !documentDob.equals(formDob));
+                                documentDob == null || formDob == null
+                                        || !documentDob.equals(formDob));
 
                 if (dobMismatch) {
                     findings.add("Date of birth: mismatch.");
@@ -448,11 +452,27 @@ public class VerificationRuleEngine {
         return previous[second.length()];
     }
 
-    private String normalizeDate(String value) {
-        return value == null
-                ? ""
-                : value.replace('-', '/')
-                        .replaceAll("\\s+", "")
-                        .trim();
+    private LocalDate parseDate(String value) {
+        if (value == null || value.isBlank()) return null;
+
+        String candidate = value.trim()
+                .replace('.', '/')
+                .replace('-', '/')
+                .replaceAll("\\s+", "");
+
+        for (DateTimeFormatter formatter : List.of(
+                DateTimeFormatter.ofPattern("uuuu/MM/dd"),
+                DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+                DateTimeFormatter.ofPattern("dd/MM/uuuu"),
+                DateTimeFormatter.ofPattern("d/M/uuuu"),
+                DateTimeFormatter.ofPattern("MM/dd/uuuu"),
+                DateTimeFormatter.ofPattern("M/d/uuuu"))) {
+            try {
+                return LocalDate.parse(candidate, formatter);
+            } catch (DateTimeParseException ignored) {
+                // Try the next OCR-supported format.
+            }
+        }
+        return null;
     }
 }
