@@ -1,5 +1,5 @@
 package com.kycautomate.audit.service;
-
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,7 +16,7 @@ import java.time.Instant;
 
 import com.kycautomate.audit.dto.EventCountResponse;
 import com.kycautomate.audit.dto.StatusCountResponse;
-
+import com.kycautomate.audit.dto.DashboardSummaryResponse;
 @Service
 public class AuditEventService {
 
@@ -36,7 +36,7 @@ public class AuditEventService {
 		event.setReason(request.reason());
 		event.setActor(request.actor());
 		event.setActorRole(request.actorRole());
-
+		event.setDocumentType(request.documentType());
 		return repository.save(event);
 	}
 
@@ -69,11 +69,129 @@ public class AuditEventService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AuditEvent> searchEvents(String applicationId, EventType eventType, String actor) {
+	public List<AuditEvent> searchEvents(
+	        String applicationId,
+	        EventType eventType,
+	        String reviewer,
+	        String documentType,
+	        Instant fromTime,
+	        Instant toTime) {
 
-		return repository.searchEvents(applicationId, eventType, actor);
+	    return repository.searchEvents(
+	            applicationId,
+	            eventType,
+	            reviewer,
+	            documentType,
+	            fromTime,
+	            toTime
+	    );
 	}
+	
+	@Transactional(readOnly = true)
+	public DashboardSummaryResponse getDashboardSummary(
+	        Instant from,
+	        Instant to,
+	        String reviewer,
+	        String documentType) {
 
+	    /*
+	     * First, identify applications matching the selected filters.
+	     * For example: applications containing a PAN event in a date range.
+	     */
+	    List<AuditEvent> matchingEvents =
+	            repository.searchEvents(
+	                    null,
+	                    null,
+	                    reviewer,
+	                    documentType,
+	                    from,
+	                    to
+	            );
+
+	    List<String> applicationIds =
+	            matchingEvents.stream()
+	                    .map(AuditEvent::getApplicationId)
+	                    .distinct()
+	                    .toList();
+
+	    if (applicationIds.isEmpty()) {
+	        return new DashboardSummaryResponse(
+	                0,
+	                0,
+	                0,
+	                0,
+	                0,
+	                0,
+	                0,
+	                List.of()
+	        );
+	    }
+
+	    /*
+	     * Then read the complete history of those applications.
+	     * This ensures their current status is calculated from the
+	     * actual latest event, not only from the filtered event.
+	     */
+	    List<AuditEvent> applicationHistory =
+	            repository
+	                    .findByApplicationIdInOrderByEventTimestampAsc(
+	                            applicationIds
+	                    );
+
+	    Map<String, AuditEvent> latestByApplication =
+	            applicationHistory.stream()
+	                    .collect(Collectors.toMap(
+	                            AuditEvent::getApplicationId,
+	                            event -> event,
+	                            (oldEvent, newEvent) -> newEvent
+	                    ));
+
+	    Map<String, Long> countsByStatus =
+	            latestByApplication.values()
+	                    .stream()
+	                    .map(this::toStatus)
+	                    .collect(Collectors.groupingBy(
+	                            status -> status,
+	                            Collectors.counting()
+	                    ));
+
+	    long documentFailureApplicationCount =
+	            applicationHistory.stream()
+	                    .filter(event ->
+	                            event.getEventType()
+	                                    == EventType.DOCUMENT_QUALITY_FAILED
+	                                    ||
+	                            event.getEventType()
+	                                    == EventType.DOCUMENT_REJECTED
+	                    )
+	                    .map(AuditEvent::getApplicationId)
+	                    .distinct()
+	                    .count();
+
+	    List<AuditEvent> recentEvents =
+	            matchingEvents.stream()
+	                    .sorted(
+	                            Comparator.comparing(
+	                                    AuditEvent::getEventTimestamp
+	                            ).reversed()
+	                    )
+	                    .limit(10)
+	                    .toList();
+
+	    return new DashboardSummaryResponse(
+	            latestByApplication.size(),
+	            countsByStatus.getOrDefault("APPROVED", 0L),
+	            countsByStatus.getOrDefault("REJECTED", 0L),
+	            countsByStatus.getOrDefault("PROCESSING", 0L),
+	            countsByStatus.getOrDefault("MANUAL_REVIEW", 0L),
+	            countsByStatus.getOrDefault(
+	                    "RESUBMISSION_REQUESTED",
+	                    0L
+	            ),
+	            documentFailureApplicationCount,
+	            recentEvents
+	    );
+	}	
 	@Transactional(readOnly = true)
 	public List<StatusCountResponse> getStatusCounts() {
 

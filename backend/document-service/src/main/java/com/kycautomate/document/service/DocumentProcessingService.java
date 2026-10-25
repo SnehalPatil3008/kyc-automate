@@ -67,7 +67,8 @@ public class DocumentProcessingService {
                         "DOCUMENT_PROCESSING_STARTED",
                         "Quality checks and OCR processing started",
                         "document-service",
-                        "SERVICE"
+                        "SERVICE",
+                        document.getDocumentType().name()
                 )
         );
 
@@ -113,7 +114,8 @@ public class DocumentProcessingService {
                     "OCR_COMPLETED",
                     "OCR extraction completed successfully",
                     "document-service",
-                    "SERVICE"
+                    "SERVICE",
+                    document.getDocumentType().name()
             ));
             
         } catch (Exception exception) {
@@ -144,7 +146,8 @@ public class DocumentProcessingService {
                     "DOCUMENT_QUALITY_FAILED",
                     message,
                     "document-service",
-                    "SERVICE"
+                    "SERVICE",
+                    document.getDocumentType().name()
             ));
 
             auditClient.recordEvent(new AuditEventRequest(
@@ -152,7 +155,8 @@ public class DocumentProcessingService {
                     "DOCUMENT_REJECTED",
                     "Document rejected because quality checks failed",
                     "document-service",
-                    "SERVICE"
+                    "SERVICE",
+                    document.getDocumentType().name()
             ));
 
         } else if ("FAILED".equalsIgnoreCase(status)) {
@@ -161,7 +165,8 @@ public class DocumentProcessingService {
                     "OCR_FAILED",
                     message,
                     "document-service",
-                    "SERVICE"
+                    "SERVICE",
+                    document.getDocumentType().name()
             ));
         }
         

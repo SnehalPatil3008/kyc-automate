@@ -67,13 +67,14 @@ public class DocumentService {
 
         repository.saveAndFlush(document);
         auditClient.recordEvent(
-                new AuditEventRequest(
-                        applicationId,
-                        "DOCUMENT_UPLOADED",
-                        documentType + " document uploaded",
-                        "document-service",
-                        "SERVICE"
-                )
+        		new AuditEventRequest(
+        		        applicationId,
+        		        "DOCUMENT_UPLOADED",
+        		        documentType + " document uploaded",
+        		        "document-service",
+        		        "SERVICE",
+        		        documentType.name()
+        		)
         );
         return toResponse(document);
     }

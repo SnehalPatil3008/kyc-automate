@@ -2,30 +2,36 @@ import { createContext, useContext, useState } from "react";
 
 const AuthContext = createContext(null);
 
+function normalizeRole(role) {
+  return typeof role === "string" ? role.trim().toUpperCase() : null;
+}
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(
-    localStorage.getItem("accessToken")
+    sessionStorage.getItem("accessToken")
   );
 
-  const [role, setRole] = useState(
-    localStorage.getItem("role")
+  const [role, setRole] = useState(() =>
+    normalizeRole(sessionStorage.getItem("role"))
   );
 
   function login(authResponse) {
-    localStorage.setItem(
+    sessionStorage.setItem(
       "accessToken",
       authResponse.accessToken
     );
 
-    localStorage.setItem("role", authResponse.role);
+    const normalizedRole = normalizeRole(authResponse.role);
+
+    sessionStorage.setItem("role", normalizedRole ?? "");
 
     setToken(authResponse.accessToken);
-    setRole(authResponse.role);
+    setRole(normalizedRole);
   }
 
   function logout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("role");
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("role");
 
     setToken(null);
     setRole(null);
@@ -46,6 +52,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

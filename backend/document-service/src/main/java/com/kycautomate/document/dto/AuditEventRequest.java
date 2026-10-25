@@ -5,6 +5,7 @@ public record AuditEventRequest(
         String eventType,
         String reason,
         String actor,
-        String actorRole
+        String actorRole,
+        String documentType
 ) {
 }

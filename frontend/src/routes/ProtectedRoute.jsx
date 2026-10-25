@@ -8,7 +8,10 @@ export default function ProtectedRoute({ allowedRole, children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (role !== allowedRole) {
+  const normalizedRole = role?.trim().toUpperCase();
+  const normalizedAllowedRole = allowedRole?.trim().toUpperCase();
+
+  if (normalizedRole !== normalizedAllowedRole) {
     return <Navigate to="/unauthorized" replace />;
   }
 

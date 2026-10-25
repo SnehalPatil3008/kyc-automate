@@ -1,5 +1,5 @@
 package com.kycautomate.audit.controller;
-
+import org.springframework.format.annotation.DateTimeFormat;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,7 +16,7 @@ import com.kycautomate.audit.enums.EventType;
 import com.kycautomate.audit.service.AuditEventService;
 
 import jakarta.validation.Valid;
-
+import com.kycautomate.audit.dto.DashboardSummaryResponse;
 @RestController
 @RequestMapping("/api/audit")
 @Validated
@@ -53,6 +53,36 @@ public class AuditEventController {
 		return ResponseEntity.ok(service.getLatestEvent(applicationId));
 	}
 
+	@GetMapping("/reports/dashboard")
+	public ResponseEntity<DashboardSummaryResponse> getDashboardSummary(
+
+	        @RequestParam(required = false)
+	        @DateTimeFormat(
+	                iso = DateTimeFormat.ISO.DATE_TIME
+	        )
+	        Instant from,
+
+	        @RequestParam(required = false)
+	        @DateTimeFormat(
+	                iso = DateTimeFormat.ISO.DATE_TIME
+	        )
+	        Instant to,
+
+	        @RequestParam(required = false)
+	        String reviewer,
+
+	        @RequestParam(required = false)
+	        String documentType) {
+
+	    return ResponseEntity.ok(
+	            service.getDashboardSummary(
+	                    from,
+	                    to,
+	                    reviewer,
+	                    documentType
+	            )
+	    );
+	}
 	@GetMapping("/reports/event-counts/range")
 	public ResponseEntity<List<EventCountResponse>> getEventCountsByRange(@RequestParam Instant from,
 			@RequestParam Instant to) {
@@ -61,10 +91,42 @@ public class AuditEventController {
 	}
 
 	@GetMapping("/events")
-	public ResponseEntity<List<AuditEvent>> searchEvents(@RequestParam(required = false) String applicationId,
-			@RequestParam(required = false) EventType eventType, @RequestParam(required = false) String actor) {
+	public ResponseEntity<List<AuditEvent>> searchEvents(
 
-		return ResponseEntity.ok(service.searchEvents(applicationId, eventType, actor));
+	        @RequestParam(required = false)
+	        String applicationId,
+
+	        @RequestParam(required = false)
+	        EventType eventType,
+
+	        @RequestParam(required = false)
+	        String reviewer,
+
+	        @RequestParam(required = false)
+	        String documentType,
+
+	        @RequestParam(required = false)
+	        @DateTimeFormat(
+	                iso = DateTimeFormat.ISO.DATE_TIME
+	        )
+	        Instant from,
+
+	        @RequestParam(required = false)
+	        @DateTimeFormat(
+	                iso = DateTimeFormat.ISO.DATE_TIME
+	        )
+	        Instant to) {
+
+	    return ResponseEntity.ok(
+	            service.searchEvents(
+	                    applicationId,
+	                    eventType,
+	                    reviewer,
+	                    documentType,
+	                    from,
+	                    to
+	            )
+	    );
 	}
 
 	@GetMapping("/reports/status-counts")

@@ -18,6 +18,9 @@ public class AuditEvent {
     @Column(name = "APPLICATION_ID", nullable = false, length = 36)
     private String applicationId;
 
+    @Column(name = "DOCUMENT_TYPE", length = 50)
+    private String documentType;
+    
     @Enumerated(EnumType.STRING)
     @Column(name = "EVENT_TYPE", nullable = false, length = 50)
     private EventType eventType;
@@ -83,6 +86,14 @@ public class AuditEvent {
         return actorRole;
     }
 
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+    
     public void setActorRole(String actorRole) {
         this.actorRole = actorRole;
     }
