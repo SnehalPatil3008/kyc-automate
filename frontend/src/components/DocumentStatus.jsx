@@ -71,7 +71,10 @@ export default function DocumentStatus({
   }
 
   useEffect(() => {
-    loadDocumentStatus();
+    const loadId = window.setTimeout(() => loadDocumentStatus(), 0);
+    return () => window.clearTimeout(loadId);
+    // loadDocumentStatus intentionally reloads when the application or refresh key changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, refreshKey]);
 
   return (

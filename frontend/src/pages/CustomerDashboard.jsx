@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../services/api";
 import DocumentUpload from "../components/DocumentUpload";
 import DocumentStatus from "../components/DocumentStatus";
@@ -53,10 +53,11 @@ export default function CustomerDashboard() {
   const [submittingApplication, setSubmittingApplication] = useState(null);
   const [resubmittingApplication, setResubmittingApplication] = useState(null);
   const [refreshDocuments, setRefreshDocuments] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
+  const loadDashboard = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setError("");
         const [profileResponse, applicationsResponse] = await Promise.all([
           api.get("/api/customers/me"),
           api.get("/api/kyc/applications/me"),
@@ -86,15 +87,37 @@ export default function CustomerDashboard() {
         ));
       } catch (err) {
         console.error("Dashboard loading failed:", err);
+        if (!silent) {
         setError("Unable to load dashboard: " + (err.response?.status || err.message));
+        }
       } finally {
+        if (!silent) {
         setLoading(false);
+        }
       }
-    }
-    loadDashboard();
   }, []);
 
-  const application = applications[0];
+  useEffect(() => {
+    const initialLoadId = window.setTimeout(() => loadDashboard(), 0);
+
+    // Keep the customer status in sync with reviewer decisions.
+    const intervalId = window.setInterval(() => loadDashboard(true), 10000);
+    return () => {
+      window.clearTimeout(initialLoadId);
+      window.clearInterval(intervalId);
+    };
+  }, [loadDashboard]);
+
+  async function refreshStatus() {
+    setRefreshing(true);
+    await loadDashboard(true);
+    setRefreshing(false);
+  }
+
+  const application = applications.reduce((latest, current) => {
+    if (!latest) return current;
+    return Number(current.applicationId) > Number(latest.applicationId) ? current : latest;
+  }, null);
   const applicationCompleteness = application ? completeness[application.applicationId] : null;
   const activeStep = progressStep(application, applicationCompleteness?.complete);
   const verificationResult = application ? verificationResults[application.applicationId] : null;
@@ -188,6 +211,7 @@ export default function CustomerDashboard() {
       <main className="dashboard">
         <header className="dashboard-header">
           <div><p className="eyebrow">CUSTOMER PORTAL</p><h1>Welcome back, {profile?.fullName?.split(" ")[0]}</h1><p>Track your KYC verification status and complete any pending steps.</p></div>
+          <button className="secondary-action" onClick={refreshStatus} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh status"}</button>
         </header>
 
         {!application ? (

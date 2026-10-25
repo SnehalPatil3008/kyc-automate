@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import PortalHeader from '../components/PortalHeader';
 import { reviewerApi, verificationApi, documentApi, requestError } from '../services/reviewerApi';
 import './ReviewerDashboard.css';
@@ -66,14 +66,30 @@ function ReviewDetail({ initial, onChanged }) {
     try {
       const response = await reviewerApi.post(`/api/reviews/${review.reviewId}/decision`, { decision, reason: reason.trim(), requestedDocumentTypes: decision === 'RESUBMISSION_REQUIRED' ? requested : [] });
       setReview(response.data); setHistory(items => [response.data, ...items.filter(item => item.reviewId !== response.data.reviewId)]);
-      setMessage(`Decision saved: ${label(response.data.targetStatus)}. State: ${label(response.data.reviewState)}.`);
+      setMessage(response.data.reviewState === 'COMPLETED'
+        ? `Decision saved and customer application updated to ${label(response.data.targetStatus)}.`
+        : `Decision saved, but customer synchronization is ${label(response.data.reviewState)}.`);
       setDecision(''); setReason(''); setRequested([]); onChanged();
-    } catch (error) { setMessage(requestError(error)); }
+    } catch (error) {
+      try {
+        const latest = await reviewerApi.get(`/api/reviews/${review.reviewId}`);
+        setReview(latest.data);
+        if (latest.data.reviewState === 'PENDING_SYNC') {
+          setMessage('Decision saved, but Customer Service was not updated. Restore service connectivity, then click Retry synchronization.');
+        } else if (latest.data.reviewState === 'SYNC_CONFLICT') {
+          setMessage('Decision could not update the customer application because its status changed. Review the latest application state.');
+        } else {
+          setMessage(requestError(error));
+        }
+      } catch {
+        setMessage(requestError(error));
+      }
+    }
     finally { setBusy(false); }
   }
   async function retry() {
     setBusy(true);
-    try { const response = await reviewerApi.post(`/api/reviews/${review.reviewId}/retry-sync`); setReview(response.data); onChanged(); setMessage('Synchronization request completed.'); }
+    try { const response = await reviewerApi.post(`/api/reviews/${review.reviewId}/retry-sync`); setReview(response.data); onChanged(); setMessage(response.data.reviewState === 'COMPLETED' ? `Customer application updated to ${label(response.data.targetStatus)}.` : `Synchronization state: ${label(response.data.reviewState)}.`); }
     catch (error) { setMessage(requestError(error)); }
     finally { setBusy(false); }
   }
@@ -97,15 +113,22 @@ export default function ReviewerDashboard() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('ALL');
-  async function refresh() {
-    setLoading(true); setError('');
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); setError('');
     try { setQueue((await reviewerApi.get('/api/reviews/pending')).data); }
     catch (failure) { setError(requestError(failure)); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { let active = true; reviewerApi.get('/api/reviews/pending').then(response => { if (active) setQueue(response.data); }).catch(failure => { if (active) setError(requestError(failure)); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, []);
+    finally { if (!silent) setLoading(false); }
+  }, []);
+  useEffect(() => {
+    const initialLoadId = window.setTimeout(() => refresh(), 0);
+    const intervalId = window.setInterval(() => refresh(true), 10000);
+    return () => {
+      window.clearTimeout(initialLoadId);
+      window.clearInterval(intervalId);
+    };
+  }, [refresh]);
   const visible = queue.filter(review => `${review.applicationId} ${review.reviewId}`.includes(query.trim()) && (filter === 'ALL' || review.targetStatus === filter));
-  return <div className="portal-shell reviewer-shell"><PortalHeader /><main className="rv-main"><div className="rv-heading"><div><p className="rv-eyebrow">REVIEWER PORTAL</p><h1>Application review</h1><p className="rv-muted">Inspect verification evidence and make a decision.</p></div><button disabled={loading} onClick={refresh}>{loading ? 'Refreshing…' : 'Refresh queue'}</button></div>
+  return <div className="portal-shell reviewer-shell"><PortalHeader /><main className="rv-main"><div className="rv-heading"><div><p className="rv-eyebrow">REVIEWER PORTAL</p><h1>Application review</h1><p className="rv-muted">Inspect verification evidence and make a decision.</p></div><button disabled={loading} onClick={() => refresh()}>{loading ? 'Refreshing…' : 'Refresh queue'}</button></div>
     <div className="rv-stats"><div>Active reviews<strong>{queue.length}</strong></div><div>Manual review<strong>{queue.filter(item => item.targetStatus === 'MANUAL_REVIEW').length}</strong></div><div>Checks passed<strong>{queue.filter(item => item.targetStatus === 'AUTO_CHECKS_PASSED').length}</strong></div></div>
     {error && <p role="alert" className="rv-error">{error}</p>}<div className="rv-layout"><section className="rv-queue"><h2>Review queue</h2><label>Search application or review<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Application or review ID" /></label><label>Status<select value={filter} onChange={event => setFilter(event.target.value)}><option value="ALL">All active reviews</option><option value="MANUAL_REVIEW">Manual review</option><option value="AUTO_CHECKS_PASSED">Checks passed</option></select></label>{!loading && !visible.length && <p className="rv-muted">{error ? 'Queue could not be loaded.' : 'No matching pending reviews.'}</p>}{visible.map(review => <button className={`rv-queue-item ${selected?.reviewId === review.reviewId ? 'is-selected' : ''}`} key={review.reviewId} onClick={() => setSelected(review)}><strong>Application #{review.applicationId}</strong><span className="rv-badge">{label(review.targetStatus)}</span><span>Review #{review.reviewId} · {label(review.reviewState)}</span><span>{review.reason}</span></button>)}</section>{selected ? <ReviewDetail key={selected.reviewId} initial={selected} onChanged={refresh} /> : <section className="rv-detail rv-empty"><h2>Select an application</h2><p>Choose a review from the queue to inspect its evidence and submit a decision.</p></section>}</div>
   </main></div>;

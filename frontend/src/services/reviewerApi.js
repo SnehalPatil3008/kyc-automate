@@ -7,7 +7,7 @@ export const documentApi = axios.create({ baseURL: '/review-api/document' });
 for (const client of [reviewerApi, verificationApi, documentApi]) {
   client.interceptors.request.use(config => {
     if (!config.url?.endsWith('/login')) {
-      const token = localStorage.getItem('accessToken');
+      const token = sessionStorage.getItem('accessToken');
       if (token) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
